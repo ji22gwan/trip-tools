@@ -91,7 +91,23 @@ if ($env:SKIP_PAGES -ne '1') {
 
 Say '5/6 번역 서버 배포 (Cloudflare Worker)'
 $origin = if ($pagesUrl) { $pagesUrl } else { '*' }
-$r = Run-Wr @('deploy', '--name', $WorkerName, '--var', "GEMINI_MODEL:$model", '--var', "ALLOWED_ORIGIN:$origin")
+# 출장 패키지 보관함(KV). 만들지 못해도 번역은 그대로 쓸 수 있다.
+$deployCfg = 'wrangler.toml'
+$kvId = if ($env:KV_ID) { $env:KV_ID } elseif ($state["KV_ID"]) { $state["KV_ID"] } else { '' }
+if (-not $kvId) {
+  $k = Run-Wr @('kv', 'namespace', 'create', 'TRIP_PACKAGES')
+  $m0 = [regex]::Match($k.Out, '[0-9a-f]{32}'); if ($m0.Success) { $kvId = $m0.Value }
+  if (-not $kvId) {
+    $l = Run-Wr @('kv', 'namespace', 'list')
+    try { $arr = $l.Out.Substring($l.Out.IndexOf('[')) | ConvertFrom-Json; $hit = $arr | Where-Object { $_.title -like '*TRIP_PACKAGES' } | Select-Object -First 1; if ($hit) { $kvId = $hit.id } } catch {}
+  }
+}
+if ($kvId) {
+  $base = Get-Content (Join-Path $Root 'worker\wrangler.toml') -Raw
+  Set-Content -Path (Join-Path $Root 'worker\.deploy.toml') -Value ($base + "`n[[kv_namespaces]]`nbinding = `"PACKAGES`"`nid = `"$kvId`"`n") -Encoding UTF8
+  $deployCfg = '.deploy.toml'
+} else { Write-Host '참고: 패키지 보관함(KV)을 만들지 못했어요. 번역은 정상이고, 출장 패키지는 ZIP 파일로 옮겨 주세요.' }
+$r = Run-Wr @('deploy', '-c', $deployCfg, '--name', $WorkerName, '--var', "GEMINI_MODEL:$model", '--var', "ALLOWED_ORIGIN:$origin")
 if ($r.Code -ne 0) { Write-Host $r.Out; Die '번역 서버 배포에 실패했어요.' }
 $m = [regex]::Match($r.Out, 'https://[a-z0-9.-]+\.workers\.dev')
 $workerUrl = if ($m.Success) { $m.Value } else { '' }
@@ -105,7 +121,7 @@ try {
   if ($r.Code -ne 0) { Write-Host $r.Out; Die '비밀 값 등록에 실패했어요.' }
 } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 
-@{ WORKER_NAME = $WorkerName; PAGES_NAME = $PagesName; WORKER_URL = $workerUrl; PAGES_URL = $pagesUrl; GEMINI_MODEL = $model; TOKEN = $token } |
+@{ WORKER_NAME = $WorkerName; PAGES_NAME = $PagesName; WORKER_URL = $workerUrl; PAGES_URL = $pagesUrl; GEMINI_MODEL = $model; KV_ID = $kvId; TOKEN = $token } |
   ConvertTo-Json | Set-Content -Path $StateFile -Encoding UTF8
 
 Write-Host @"

@@ -332,16 +332,19 @@ function confirmPackage() {
   modal("패키지 확정", (m, close) => {
     m.append(h("div", { class: "msg" }, `선택한 ${s.picked}곳, 대표 지도 ${s.maps ? "1장" : "없음"}, 용어 ${P.v.glossary.length}개가 들어가요.`));
     if (warns.length) m.append(h("div", { class: "msg warn" }, h("b", {}, "확인해 주세요"), h("ul", { style: "margin:6px 0 0;padding-left:18px" }, ...warns.map((w) => h("li", {}, w)))));
-    m.append(h("div", { class: "msg" }, h("b", {}, "폰으로 옮기는 방법"), h("ol", { style: "margin:6px 0 0;padding-left:18px;line-height:1.7" },
-      h("li", {}, "내려받은 ZIP 파일을 AirDrop·메일·USB 등으로 폰에 보내세요."),
-      h("li", {}, "폰에서 Trip Field → 설정 → '새 출장 · 패키지 불러오기'로 그 파일을 선택하세요."),
-      h("li", {}, "폰에서 오프라인으로도 열리는지 비행기 모드로 한 번 확인해 두면 안심이에요."))));
-    m.append(h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn", onclick: close }, "취소"),
-      h("button", { class: "btn primary", disabled: !s.picked && false, onclick: () => {
-        download(`/trips/${P.tid}/package`);
-        try { localStorage.setItem(flagKey(P.tid), "1"); } catch {}
-        close();
-        setTimeout(redraw, 200);
-      } }, "ZIP 내려받기")));
+    const status = h("div", { class: "sub" }, "서버 연결 확인 중…");
+    const mark = () => { try { localStorage.setItem(flagKey(P.tid), "1"); } catch {} setTimeout(redraw, 200); };
+    const send = h("button", { class: "btn primary", disabled: true, onclick: async (e) => {
+      e.currentTarget.disabled = true;
+      const r = await guard(() => api("POST", `/trips/${P.tid}/package/upload`, {}));
+      if (r) { toast(`서버에 올렸어요 (${(r.size / 1024).toFixed(0)}KB). 폰에서 '서버에서 불러오기'를 누르세요.`); mark(); close(); } else e.currentTarget.disabled = false;
+    } }, "폰으로 보내기 (서버)");
+    api("GET", "/cloud").then((c) => { send.disabled = !c.ready; status.textContent = c.ready ? "서버 보관함 사용 가능" : (c.hasToken ? "서버 보관함이 없어요. install-worker 를 다시 실행하면 만들어져요." : "서버 설치 기록을 찾지 못했어요. ZIP 으로 옮길 수 있어요."); }).catch(() => { status.textContent = "서버 상태를 확인하지 못했어요."; });
+    m.append(h("div", { class: "msg" }, h("b", {}, "폰으로 보내는 방법"), h("ol", { style: "margin:6px 0 0;padding-left:18px;line-height:1.7" },
+      h("li", {}, "아래 '폰으로 보내기'를 누르면 서버에 올라가요."),
+      h("li", {}, "폰에서 Trip Field → 설정 → '새 출장' → '서버에서 불러오기'를 누르세요."),
+      h("li", {}, "인터넷이 안 될 땐 ZIP 으로 내려받아 AirDrop·메일·USB 로 옮기세요."))), status);
+    m.append(h("div", { class: "row", style: "justify-content:flex-end;flex-wrap:wrap" }, h("button", { class: "btn", onclick: close }, "취소"),
+      h("button", { class: "btn", onclick: () => { download(`/trips/${P.tid}/package`); mark(); close(); } }, "ZIP 내려받기"), send));
   });
 }

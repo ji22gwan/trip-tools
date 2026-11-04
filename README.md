@@ -86,7 +86,12 @@ npx wrangler pages deploy field-pwa --project-name trip-field
 
 ## 3. 데이터 형식
 
-### 출장 패키지 (노트북 → 폰, ZIP)
+### 출장 패키지 보내기 (노트북 → 폰): 서버 또는 ZIP
+- **서버(기본)**: Desk '패키지 확정'에서 '폰으로 보내기'를 누르면 내 Worker 의 보관함(Cloudflare KV)에 올라가요. 폰에서 새 출장 → '서버에서 불러오기'. 토큰마다 보관함이 따로 나뉘고 90일 뒤 자동으로 지워져요. 크기 한도 24MB, 반영까지 1분쯤 걸릴 수 있어요(KV 특성). `install-worker` 를 다시 실행해야 보관함이 만들어져요(Worker 코드가 바뀌었으므로 폰·서버 둘 다 갱신).
+- **ZIP(대체)**: 인터넷이 안 될 때 예전처럼 파일로 옮겨요. 아래 형식은 둘 다 같아요.
+- 하루치 기록(폰 → 노트북)은 지금처럼 ZIP(이메일 등)로 옮겨요. 녹음·사진이 커서 서버에는 올리지 않아요.
+
+### 출장 패키지 형식 (ZIP)
 ```
 trip.json        { schema, id, name, venue, purpose, days: ["2026-11-24", ...] }
 companies.json   [ { id, name, category, hall, booth, day, preNotes, questions: [..] } ]

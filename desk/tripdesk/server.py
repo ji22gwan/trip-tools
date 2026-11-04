@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import companies_io, daily, dayai, mapfinder, package, reports, research, transcribe, travel
+from . import cloud, companies_io, daily, dayai, mapfinder, package, reports, research, transcribe, travel
 from .store import Store, StoreError
 
 WEB = Path(__file__).parent / "web"
@@ -299,6 +299,17 @@ class Api:
     def get_package(self, m, q, body):
         name, data = package.build_package(self.store, m["tid"])
         return ("bytes", data, "application/zip", name)
+
+    @route("GET", r"/api/cloud")
+    def cloud_status(self, m, q, body):
+        return cloud.status()
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/package/upload")
+    def upload_package(self, m, q, body):
+        """패키지를 만들어 Worker 보관함에 올린다. 폰에서 '서버에서 불러오기'로 받는다."""
+        name, data = package.build_package(self.store, m["tid"])
+        res = cloud.upload_package(m["tid"], self.store.get_trip(m["tid"]).get("name", ""), data)
+        return {"ok": True, "size": len(data), "id": res.get("id", m["tid"])}
 
     # ---- 일간 데이터 ----
     @route("POST", r"/api/trips/(?P<tid>[^/]+)/days/import")

@@ -1,6 +1,7 @@
 // 첫 화면 / 새 출장: 패키지 ZIP 불러오기 또는 직접 만들기
 import * as db from "../db.js";
-import { esc, icons, pickFile, toast } from "../ui.js";
+import { esc, icons, openSheet, pickFile, toast } from "../ui.js";
+import { listServerPackages, downloadServerPackage } from "../cloud.js";
 import { createTrip, todayISO } from "../model.js";
 import { importTripPackage } from "../importer.js";
 
@@ -17,7 +18,9 @@ export async function renderSetup(root, ctx) {
       <div class="card stack">
         <div style="font-weight:800;font-size:17px">출장 패키지 불러오기</div>
         <div class="small muted">노트북(Trip Desk)에서 만든 ZIP 파일이에요. 전시장 맵, 후보 업체, 일정이 한 번에 들어와요. 다시 불러와도 방문 기록은 지워지지 않아요.</div>
-        <button class="btn btn-primary btn-block" id="pkgBtn">ZIP 파일 선택</button>
+        <button class="btn btn-primary btn-block" id="srvBtn">서버에서 불러오기</button>
+        <div class="tiny muted">Desk 에서 '폰으로 보내기'를 누른 출장이 목록에 나와요. 설정에 서버 주소와 토큰이 있어야 해요.</div>
+        <button class="btn btn-block" id="pkgBtn">ZIP 파일 선택</button>
       </div>
       <div class="card stack">
         <div style="font-weight:800;font-size:17px">직접 만들기</div>
@@ -35,6 +38,32 @@ export async function renderSetup(root, ctx) {
 
   root.querySelector("#backBtn")?.addEventListener("click", () => (location.hash = "#/map"));
   root.querySelector("#settingsBtn").onclick = () => (location.hash = "#/settings");
+
+  root.querySelector("#srvBtn").onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const items = await listServerPackages();
+      if (!items.length) { toast("서버에 올라온 출장이 없어요. Desk 에서 '폰으로 보내기'를 먼저 눌러 주세요.", 4500); return; }
+      const when = (t) => (t ? new Date(t).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+      const { el, close } = openSheet(`<div class="sheet-head"><h2 class="sheet-title">서버의 출장</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
+        <div class="stack">${items.map((p) => `<button class="btn btn-block" data-id="${esc(p.id)}" style="text-align:left;display:block"><b>${esc(p.name || p.id)}</b><div class="small muted">${esc(when(p.at))} 업로드 · ${Math.round((p.size || 0) / 1024)}KB</div></button>`).join("")}</div>`);
+      el.querySelectorAll("[data-id]").forEach((b) => (b.onclick = async () => {
+        b.disabled = true;
+        try {
+          const r = await importTripPackage(await downloadServerPackage(b.dataset.id));
+          close();
+          toast(`'${r.trip.name}' 불러옴 · 업체 ${r.added + r.updated}곳 · 맵 ${r.maps}장`, 4000);
+          location.hash = "#/map";
+          ctx.rerender();
+        } catch (err) { toast(err.message, 5000); b.disabled = false; }
+      }));
+    } catch (err) {
+      toast(err.message, 5000);
+    } finally {
+      btn.disabled = false;
+    }
+  };
 
   root.querySelector("#pkgBtn").onclick = async (e) => {
     const btn = e.currentTarget; // await 뒤에는 currentTarget 이 null 이 되므로 먼저 잡아 둔다

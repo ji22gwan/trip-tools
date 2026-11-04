@@ -32,8 +32,8 @@ function corsHeaders(env, request) {
   }
   return {
     "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "POST, GET, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Trip-Name",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -120,6 +120,59 @@ async function translate(env, text, from, to) {
   return out;
 }
 
+// ---------- 패키지 보관함 (Desk → 폰) ----------
+// Desk 가 올린 출장 패키지(ZIP)를 KV 에 잠시 보관하고 폰이 내려받는다. 토큰마다 보관함이 따로라 팀원끼리 섞이지 않는다.
+const MAX_PACKAGE_BYTES = 24 * 1024 * 1024; // KV 값 한도(25MB) 아래
+const PACKAGE_TTL_SEC = 60 * 60 * 24 * 90;
+const TRIP_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+async function namespaceOf(token) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return [...new Uint8Array(d)].slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function handlePackages(request, env, url, cors) {
+  if (!env.PACKAGES) return json({ error: "storage_not_configured" }, 501, cors);
+  if (!env.TOKENS) return json({ error: "server_not_configured" }, 500, cors);
+  const token = getToken(request);
+  if (!isAllowedToken(env, token)) return json({ error: "unauthorized" }, 401, cors);
+  if (rateLimited(token)) return json({ error: "rate_limited" }, 429, cors);
+  const ns = await namespaceOf(token);
+  const m = url.pathname.match(/^\/packages(?:\/([^/]+))?$/);
+  const id = m?.[1] ? decodeURIComponent(m[1]) : "";
+  if (id && !TRIP_ID_RE.test(id)) return json({ error: "bad_id" }, 400, cors);
+
+  if (request.method === "GET" && !id) {
+    const list = await env.PACKAGES.list({ prefix: `pkg:${ns}:` });
+    const items = list.keys.map((k) => ({ id: k.name.slice(`pkg:${ns}:`.length), ...(k.metadata || {}) })).sort((a, b) => (b.at || 0) - (a.at || 0));
+    return json({ packages: items }, 200, cors);
+  }
+  if (!id) return json({ error: "not_found" }, 404, cors);
+  const key = `pkg:${ns}:${id}`;
+  if (request.method === "GET") {
+    const buf = await env.PACKAGES.get(key, "arrayBuffer");
+    if (!buf) return json({ error: "not_found" }, 404, cors);
+    return new Response(buf, { status: 200, headers: { "Content-Type": "application/zip", ...cors } });
+  }
+  if (request.method === "PUT") {
+    const len = Number(request.headers.get("Content-Length") || 0);
+    if (len > MAX_PACKAGE_BYTES) return json({ error: "too_large", max: MAX_PACKAGE_BYTES }, 413, cors);
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > MAX_PACKAGE_BYTES) return json({ error: "too_large", max: MAX_PACKAGE_BYTES }, 413, cors);
+    if (buf.byteLength < 4 || new Uint8Array(buf)[0] !== 0x50 || new Uint8Array(buf)[1] !== 0x4b) return json({ error: "not_a_zip" }, 400, cors);
+    let name = "";
+    try { name = decodeURIComponent(request.headers.get("X-Trip-Name") || ""); } catch { name = ""; }
+    const meta = { name: name.slice(0, 80), size: buf.byteLength, at: Date.now() };
+    await env.PACKAGES.put(key, buf, { metadata: meta, expirationTtl: PACKAGE_TTL_SEC });
+    return json({ ok: true, id, ...meta }, 200, cors);
+  }
+  if (request.method === "DELETE") {
+    await env.PACKAGES.delete(key);
+    return json({ ok: true }, 200, cors);
+  }
+  return json({ error: "not_found" }, 404, cors);
+}
+
 export default {
   async fetch(request, env) {
     const cors = corsHeaders(env, request);
@@ -131,6 +184,10 @@ export default {
 
     if (request.method === "GET" && url.pathname === "/health") {
       return json({ ok: true, model: env.GEMINI_MODEL || null }, 200, cors);
+    }
+
+    if (url.pathname === "/packages" || url.pathname.startsWith("/packages/")) {
+      return handlePackages(request, env, url, cors);
     }
 
     if (request.method !== "POST" || url.pathname !== "/translate") {

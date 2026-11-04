@@ -84,7 +84,22 @@ fi
 
 say "5/6 번역 서버 배포 (Cloudflare Worker)"
 ORIGIN="${PAGES_URL:-*}"
-OUT="$(cd "$ROOT/worker" && npx --no-install wrangler deploy --name "$WORKER_NAME" --var "GEMINI_MODEL:$GEMINI_MODEL" --var "ALLOWED_ORIGIN:$ORIGIN" 2>&1)" || { echo "$OUT"; die "번역 서버 배포에 실패했어요."; }
+# 출장 패키지 보관함(KV). 만들지 못해도 번역은 그대로 쓸 수 있고, 패키지는 ZIP 파일로 옮기면 된다.
+DEPLOY_CFG="wrangler.toml"
+if [ -z "${KV_ID:-}" ]; then
+  KV_OUT="$(WR kv namespace create TRIP_PACKAGES 2>&1 || true)"
+  KV_ID="$(echo "$KV_OUT" | grep -Eo '[0-9a-f]{32}' | head -1 || true)"
+  if [ -z "$KV_ID" ]; then   # 이미 만들어져 있으면 목록에서 찾는다
+    KV_ID="$(WR kv namespace list 2>/dev/null | node -e 'let t=require("fs").readFileSync(0,"utf8");try{const r=JSON.parse(t.slice(t.indexOf("[")));const x=r.find(n=>/TRIP_PACKAGES$/.test(n.title||""));if(x)process.stdout.write(x.id)}catch(e){}' || true)"
+  fi
+fi
+if [ -n "${KV_ID:-}" ]; then
+  { cat "$ROOT/worker/wrangler.toml"; printf '\n[[kv_namespaces]]\nbinding = "PACKAGES"\nid = "%s"\n' "$KV_ID"; } > "$ROOT/worker/.deploy.toml"
+  DEPLOY_CFG=".deploy.toml"
+else
+  echo "참고: 패키지 보관함(KV)을 만들지 못했어요. 번역은 정상이고, 출장 패키지는 ZIP 파일로 옮겨 주세요."
+fi
+OUT="$(cd "$ROOT/worker" && npx --no-install wrangler deploy -c "$DEPLOY_CFG" --name "$WORKER_NAME" --var "GEMINI_MODEL:$GEMINI_MODEL" --var "ALLOWED_ORIGIN:$ORIGIN" 2>&1)" || { echo "$OUT"; die "번역 서버 배포에 실패했어요."; }
 echo "$OUT" | tail -5
 WORKER_URL="$(echo "$OUT" | grep -Eo "https://[a-z0-9.-]+\.workers\.dev" | head -1 || true)"
 
@@ -100,6 +115,7 @@ PAGES_NAME="$PAGES_NAME"
 WORKER_URL="$WORKER_URL"
 PAGES_URL="$PAGES_URL"
 GEMINI_MODEL="$GEMINI_MODEL"
+KV_ID="${KV_ID:-}"
 TOKEN="$TOKEN"
 STATE
 chmod 600 "$STATE_FILE"
@@ -116,6 +132,7 @@ cat <<DONE
 
 폰에서: ① 폰 앱 주소를 열고 '홈 화면에 추가'
         ② 설정(톱니바퀴)에 '번역 서버 주소'와 '접근 토큰'을 입력하고 '연결 시험'
+출장 패키지 보관함: $( [ -n "${KV_ID:-}" ] && echo "사용 가능 (Desk 에서 바로 보내기)" || echo "만들지 못함 (ZIP 으로 옮기기)" )
 토큰은 $STATE_FILE 에도 저장돼 있어요(본인만 읽을 수 있음).
 번역이 느리면 번역 팝업 아래의 시간 표시를 확인하세요.
 =====================================================

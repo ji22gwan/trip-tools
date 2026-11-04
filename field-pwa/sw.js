@@ -1,6 +1,6 @@
 // 서비스 워커: 한 번 열어 두면 오프라인에서도 앱이 켜진다.
 // 파일을 바꿔 배포할 때는 VERSION 숫자를 올려 주세요.
-const VERSION = "tf-v7";
+const VERSION = "tf-v8";
 
 const SHELL = [
   "./",
@@ -9,6 +9,7 @@ const SHELL = [
   "css/app.css",
   "js/app.js",
   "js/db.js",
+  "js/cloud.js",
   "js/model.js",
   "js/recorder.js",
   "js/importer.js",

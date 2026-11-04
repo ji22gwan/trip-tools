@@ -22,6 +22,7 @@ case "$args" in
   *"pages project create"*) exit 0 ;;
   *"pages project list"*) [ "${STUB_LIST_FAIL:-0}" = "1" ] && exit 1; echo 'Some banner'; echo '[{"Project Name":"trip-field","Project Domains":"trip-field.pages.dev","Git Provider":"No"},{"Project Name":"other","Project Domains":"other.pages.dev"}]'; exit 0 ;;
   *"pages deploy"*) echo "Deployment complete! Take a peek over at https://02b5b7a6.trip-field.pages.dev"; exit 0 ;;
+  *"kv namespace create"*) echo '{ "binding": "TRIP_PACKAGES", "id": "0123456789abcdef0123456789abcdef" }'; exit 0 ;;
   *"wrangler deploy"*) echo "Published trip-translate https://trip-translate.acct.workers.dev"; exit 0 ;;
   *"secret bulk"*) f="$(echo "$args" | sed -E 's/.*secret bulk ([^ ]+).*/\1/')"; cp "$f" "$LOG.secrets"; exit 0 ;;
   *"wrangler delete"*) cat > "$LOG.stdin"; exit 0 ;;
@@ -50,7 +51,11 @@ TOKEN1="$(grep '^TOKEN=' "$TRIP_TOOLS_HOME/install.env" | cut -d'"' -f2)"
 grep -q "$TOKEN1" "$T/out1.txt" || fail "토큰이 화면에 안내되지 않음"
 grep -q 'https://trip-translate.acct.workers.dev' "$T/out1.txt" || fail "Worker 주소 안내 없음"
 ! ls /tmp/tmp.* 2>/dev/null | grep -q secrets || true
-ok "install-worker: 모델·CORS·비밀값·상태 파일"
+grep -q 'KV_ID="0123456789abcdef0123456789abcdef"' "$T/home/.trip-tools/install.env" || fail "KV 아이디가 기록되지 않음"
+grep -q 'wrangler deploy -c .deploy.toml' "$LOG" || fail "KV 설정으로 배포하지 않음"
+grep -q 'binding = "PACKAGES"' "$REPO/worker/.deploy.toml" || fail "KV 바인딩 설정이 없음"
+rm -f "$REPO/worker/.deploy.toml"
+ok "install-worker: 모델·CORS·비밀값·상태 파일·패키지 보관함"
 
 # 재실행: 같은 토큰 유지
 : > "$LOG"

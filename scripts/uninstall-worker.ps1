@@ -37,6 +37,11 @@ Write-Host "`n번역 서버 삭제" -ForegroundColor Cyan
 $r = Run-Wr @('delete', $WorkerName) "y"
 if ($r.Code -eq 0) { Write-Host '삭제했어요.' } else { Write-Host $r.Out; Write-Host '삭제하지 못했어요(이미 없거나 권한 문제).'; $failed = $true }
 Write-Host "`n폰 앱(Pages) 삭제" -ForegroundColor Cyan
+if ($s -and $s.KV_ID) {
+  Write-Host '패키지 보관함(KV) 삭제'
+  $rk = Run-Wr @('kv', 'namespace', 'delete', '--namespace-id', $s.KV_ID) "y"
+  if ($rk.Code -ne 0) { Write-Host '삭제하지 못했어요(이미 없거나 권한 문제).'; $failed = $true } else { Write-Host '삭제했어요.' }
+}
 $r = Run-Wr @('pages', 'project', 'delete', $PagesName, '--yes')
 if ($r.Code -eq 0) { Write-Host '삭제했어요.' } else { Write-Host $r.Out; Write-Host '삭제하지 못했어요(이미 없거나 권한 문제).'; $failed = $true }
 if (-not $failed) { Remove-Item $StateFile -Force -ErrorAction SilentlyContinue }

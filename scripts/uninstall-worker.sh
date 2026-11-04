@@ -35,6 +35,10 @@ if ! WR whoami >/dev/null 2>&1; then echo "Cloudflare 로그인이 필요해요.
 FAILED=0
 say "번역 서버 삭제"
 if printf 'y\n' | WR delete "$WORKER_NAME"; then echo "삭제했어요."; else echo "삭제하지 못했어요(이미 없거나 권한 문제)."; FAILED=1; fi
+if [ -n "${KV_ID:-}" ]; then
+  say "패키지 보관함(KV) 삭제"
+  if WR kv namespace delete --namespace-id "$KV_ID" --skip-confirmation 2>/dev/null || printf 'y\n' | WR kv namespace delete --namespace-id "$KV_ID"; then echo "삭제했어요."; else echo "삭제하지 못했어요(이미 없거나 권한 문제)."; FAILED=1; fi
+fi
 say "폰 앱(Pages) 삭제"
 if WR pages project delete "$PAGES_NAME" --yes; then echo "삭제했어요."; else echo "삭제하지 못했어요(이미 없거나 권한 문제)."; FAILED=1; fi
 

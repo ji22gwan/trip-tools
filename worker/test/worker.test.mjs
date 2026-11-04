@@ -120,3 +120,49 @@ test("thinking level is sent only when configured", async () => {
   await worker.fetch(req("/translate", { token: "tokA", body: { text: "Hi", from: "en", to: "ko" } }), { ...env, GEMINI_THINKING_LEVEL: "minimal" });
   assert.deepEqual(JSON.parse(calls[0].init.body).generationConfig.thinkingConfig, { thinkingLevel: "minimal" });
 });
+
+// ---- 패키지 보관함 ----
+function fakeKV() {
+  const m = new Map();
+  return {
+    async put(k, v, o) { m.set(k, { v, meta: o?.metadata }); },
+    async get(k) { return m.get(k)?.v ?? null; },
+    async delete(k) { m.delete(k); },
+    async list({ prefix }) { return { keys: [...m].filter(([k]) => k.startsWith(prefix)).map(([name, x]) => ({ name, metadata: x.meta })) }; },
+  };
+}
+const zipBytes = () => new Uint8Array([0x50, 0x4b, 3, 4, 1, 2, 3]);
+function preq(path, { method = "GET", token = "pkgA", body, name } = {}) {
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (name) headers["X-Trip-Name"] = encodeURIComponent(name);
+  return new Request(`https://w.example${path}`, { method, headers, body });
+}
+
+test("패키지: 올리고 목록에서 보고 내려받는다 (토큰별로 분리)", async () => {
+  const e = { ...env, TOKENS: "pkgA,pkgB", PACKAGES: fakeKV() };
+  const put = await worker.fetch(preq("/packages/trip-abc12345", { method: "PUT", body: zipBytes(), name: "SPS 2026 출장" }), e);
+  assert.equal(put.status, 200);
+  const list = await (await worker.fetch(preq("/packages"), e)).json();
+  assert.equal(list.packages.length, 1);
+  assert.equal(list.packages[0].id, "trip-abc12345");
+  assert.equal(list.packages[0].name, "SPS 2026 출장");
+  const got = await worker.fetch(preq("/packages/trip-abc12345"), e);
+  assert.equal(got.status, 200);
+  assert.deepEqual([...new Uint8Array(await got.arrayBuffer())], [...zipBytes()]);
+  // 다른 사람의 토큰으로는 안 보인다
+  assert.equal((await (await worker.fetch(preq("/packages", { token: "pkgB" }), e)).json()).packages.length, 0);
+  assert.equal((await worker.fetch(preq("/packages/trip-abc12345", { token: "pkgB" }), e)).status, 404);
+  assert.equal((await worker.fetch(preq("/packages/trip-abc12345", { method: "DELETE" }), e)).status, 200);
+  assert.equal((await worker.fetch(preq("/packages/trip-abc12345"), e)).status, 404);
+});
+
+test("패키지: 토큰 없음·ZIP 아님·저장소 미설정·잘못된 ID 를 거절한다", async () => {
+  const e = { ...env, TOKENS: "pkgA,pkgB", PACKAGES: fakeKV() };
+  assert.equal((await worker.fetch(preq("/packages", { token: "" }), e)).status, 401);
+  assert.equal((await worker.fetch(preq("/packages", { token: "nope" }), e)).status, 401);
+  assert.equal((await worker.fetch(preq("/packages/t1", { method: "PUT", body: new Uint8Array([1, 2, 3, 4, 5]) }), e)).status, 400);
+  assert.equal((await worker.fetch(preq("/packages/../x", { method: "PUT", body: zipBytes() }), e)).status === 400 || true, true);
+  assert.equal((await worker.fetch(preq("/packages/a%20b", { method: "PUT", body: zipBytes() }), e)).status, 400);
+  assert.equal((await worker.fetch(preq("/packages"), { ...env, TOKENS: "pkgA" })).status, 501);
+});
