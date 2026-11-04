@@ -111,26 +111,27 @@ export const hm = (iso) => {
   return isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
-// 프롬프트를 보여 주고 복사하게 한 뒤, Claude 의 답을 붙여 넣게 하는 공통 창
+// 프롬프트를 보여 주고 복사하게 한 뒤, AI 의 답을 붙여 넣게 하는 공통 창
 export function promptModal({ title, intro, getPrompts, onPaste, extraTop, pasteHint, auto = true }) {
   modal(title, (m, close) => {
     if (intro) m.append(h("div", { class: "msg" }, intro));
+    m.append(h("div", { class: "sub" }, "Claude, ChatGPT, Gemini 등 어떤 AI 챗봇이든 쓸 수 있어요. 웹 검색을 켜면 결과가 더 정확해요."));
     const slot = h("div", { style: "display:flex;flex-direction:column;gap:14px" });
     m.append(slot);
     let parts = [];
-    const paste = h("textarea", { placeholder: pasteHint || "Claude 의 답변 전체를 여기에 붙여 넣으세요.", style: "min-height:130px" });
+    const paste = h("textarea", { placeholder: pasteHint || "AI 의 답변 전체를 여기에 붙여 넣으세요.", style: "min-height:130px" });
     const mode = { n: 0 };
     const render = (prompts) => {
       parts = prompts;
       slot.replaceChildren(
         h("div", { class: "stepn" }, h("i", {}, "1"), h("div", { class: "grow", style: "display:flex;flex-direction:column;gap:8px" },
-          h("b", {}, prompts.length > 1 ? `아래 ${prompts.length}개 프롬프트를 Claude Chat 에 차례로 붙여 넣으세요 (각각 답을 받아 2번에 붙여 넣기)` : "아래 프롬프트를 복사해 Claude Chat 에 붙여 넣으세요 (웹 검색을 켠 채로)"),
+          h("b", {}, prompts.length > 1 ? `아래 ${prompts.length}개 프롬프트를 AI 챗봇에 차례로 붙여 넣으세요 (각각 답을 받아 2번에 붙여 넣기)` : "아래 프롬프트를 복사해 AI 챗봇에 붙여 넣으세요 (웹 검색을 켠 채로)"),
           ...prompts.map((p, i) => h("div", { style: "display:flex;flex-direction:column;gap:6px" },
             h("pre", {}, p),
             h("div", { class: "row" }, h("button", { class: "btn sm primary", onclick: () => copyText(p) }, prompts.length > 1 ? `프롬프트 ${i + 1} 복사` : "프롬프트 복사"),
               h("span", { class: "sub" }, `${p.length.toLocaleString()}자`)))))),
         h("div", { class: "stepn" }, h("i", {}, "2"), h("div", { class: "grow", style: "display:flex;flex-direction:column;gap:8px" },
-          h("b", {}, "Claude 가 준 답변 전체를 붙여 넣고 '가져오기'"), paste,
+          h("b", {}, "AI 가 준 답변 전체를 붙여 넣고 '가져오기'"), paste,
           h("div", { class: "row" }, h("button", { class: "btn primary", onclick: async () => {
             const ok = await guard(async () => { await onPaste(paste.value, parts.length > 1 && mode.n > 0 ? "append" : "replace"); return true; });
             if (ok) { mode.n++; paste.value = ""; if (parts.length <= 1 || mode.n >= parts.length) close(); }

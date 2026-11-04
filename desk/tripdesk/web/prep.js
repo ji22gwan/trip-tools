@@ -118,7 +118,7 @@ function candsTab(s) {
   const cs = P.v.companies;
   if (!cs.length) {
     return h("div", { class: "empty" }, h("b", {}, "아직 후보 업체가 없어요"),
-      h("div", {}, "키워드를 적어 Claude Chat 용 프롬프트를 만들고, 받은 답을 붙여 넣으면 후보가 채워져요. CSV/Excel 업체 목록을 가져와도 돼요."),
+      h("div", {}, "키워드를 적어 AI 챗봇용 프롬프트를 만들고, 받은 답을 붙여 넣으면 후보가 채워져요. CSV/Excel 업체 목록을 가져와도 돼요."),
       h("div", { class: "row", style: "justify-content:center" },
         h("button", { class: "btn primary", onclick: openKeywordPrompt }, "AI 프롬프트 만들기"),
         csvButton(), h("button", { class: "btn", onclick: () => openCompanyEditor(null) }, "+ 업체 직접 추가")));
@@ -300,8 +300,8 @@ function openKeywordPrompt() {
   count.value = "20";
   let last = "";
   promptModal({
-    title: "키워드로 참가업체 찾기 (Claude Chat 용)",
-    intro: "Desk 가 AI를 직접 부르지는 않아요. 키워드를 적으면 Claude Chat 에 붙여 넣을 프롬프트를 만들어 주고, Claude 의 답을 붙여 넣으면 후보 목록에 쌓여요. 이미 목록에 있는 업체는 프롬프트에서 제외돼요.",
+    title: "키워드로 참가업체 찾기 (AI 챗봇용)",
+    intro: "Desk 가 AI를 직접 부르지는 않아요. 키워드를 적으면 AI 챗봇에 붙여 넣을 프롬프트를 만들어 주고, AI 의 답을 붙여 넣으면 후보 목록에 쌓여요. 이미 목록에 있는 업체는 프롬프트에서 제외돼요.",
     auto: false,
     extraTop: (ctl) => h("div", { class: "row" },
       h("div", { class: "grow field" }, h("label", {}, "찾고 싶은 키워드 (쉼표로 구분)"), kw),
@@ -320,7 +320,7 @@ function openKeywordPrompt() {
       P.app.refreshSide();
       const p = r.pasted;
       toast(`후보 ${p.added}곳을 추가했어요` + (p.existing ? ` (이미 있던 ${p.existing}곳은 제외)` : "") + (p.unverified ? ` · 참가 미확인 ${p.unverified}곳` : ""));
-      if (p.notes) toast("Claude 메모: " + p.notes);
+      if (p.notes) toast("AI 메모: " + p.notes);
     },
   });
 }

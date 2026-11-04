@@ -175,7 +175,7 @@ class Api:
                 except mapfinder.MapError as e:
                     result["messages"].append(str(e))
         elif not result["downloaded"]:
-            result["messages"].append("공식 사이트 주소를 입력해 주세요. (Claude Chat 에 '<전시회 이름> 공식 사이트'를 물어봐도 돼요.)")
+            result["messages"].append("공식 사이트 주소를 입력해 주세요. (AI 챗봇에 '<전시회 이름> 공식 사이트'를 물어봐도 돼요.)")
         result["view"] = self.trip_view(tid)
         return result
 
@@ -261,7 +261,7 @@ class Api:
         self.store.set_glossary(m["tid"], json.loads(body or b"[]"))
         return self.trip_view(m["tid"])
 
-    # ---- 키워드 → Claude Chat 프롬프트 → 붙여넣기 ----
+    # ---- 키워드 → AI 챗봇 프롬프트 → 붙여넣기 ----
     @route("POST", r"/api/trips/(?P<tid>[^/]+)/prompt/exhibitors")
     def exhibitor_prompt(self, m, q, body):
         tid = m["tid"]

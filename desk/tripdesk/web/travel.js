@@ -1,4 +1,4 @@
-// 항공·숙소 탭: 검색 바로가기, Claude Chat 후보 찾기, 예약 기록
+// 항공·숙소 탭: 검색 바로가기, AI 챗봇 후보 찾기, 예약 기록
 import { h, api, toast, guard, modal, confirmBox, promptModal } from "./core.js";
 
 const DIR = { outbound: "가는 편", return: "오는 편", other: "기타" };
@@ -52,8 +52,8 @@ export function travelTab(P) {
       h("div", { class: "msg" }, "각 사이트의 검색 화면을 조건이 채워진 채로 열어요. 사이트가 주소 형식을 바꾸면 일부(특히 호텔 등급 필터)가 안 채워질 수 있으니, 열린 화면에서 한 번 확인하세요. 가격·잔여 객실은 그 화면이 기준입니다."),
       h("h4", {}, "항공편"), linkBtns(links.flights), h("h4", {}, "호텔"), linkBtns(links.hotels),
       h("div", { class: "row", style: "flex-wrap:wrap" },
-        h("button", { class: "btn", onclick: () => askAi("flights") }, "항공편 후보 프롬프트 (Claude Chat)"),
-        h("button", { class: "btn", onclick: () => askAi("hotels") }, "호텔 후보 프롬프트 (Claude Chat)")));
+        h("button", { class: "btn", onclick: () => askAi("flights") }, "항공편 후보 프롬프트 (AI 챗봇)"),
+        h("button", { class: "btn", onclick: () => askAi("hotels") }, "호텔 후보 프롬프트 (AI 챗봇)")));
 
     const c = T.candidates;
     if (candTab === "flights" && !c.flights.length && c.hotels.length) candTab = "hotels";
@@ -74,7 +74,7 @@ export function travelTab(P) {
 
     const rec = h("div", { class: "card" }, h("h3", {}, "예약 기록"),
       h("div", { class: "row", style: "flex-wrap:wrap" }, h("button", { class: "btn primary", onclick: () => editFlight({ direction: "outbound" }) }, "+ 항공권"), h("button", { class: "btn primary", onclick: () => editHotel({ checkIn: links.dates.checkIn, checkOut: links.dates.checkOut }) }, "+ 숙소"),
-        h("button", { class: "btn", onclick: fromMail }, "예약 메일로 자동 정리 (Claude Chat)")),
+        h("button", { class: "btn", onclick: fromMail }, "예약 메일로 자동 정리 (AI 챗봇)")),
       T.flights.length || T.hotels.length ? null : h("div", { class: "sub" }, "아직 기록이 없어요. 예약을 마치면 직접 입력하거나, 확인 메일을 붙여 넣어 정리하세요."),
       ...T.flights.map((x) => h("div", { class: "row" }, h("span", { class: "pill gray" }, DIR[x.direction]), h("div", { class: "grow" }, h("b", {}, `${x.flightNo} ${x.airline}`.trim() || "항공권"), h("div", { class: "sub" }, `${x.from}→${x.to} · ${x.depart.replace("T", " ")}${x.arrive ? " → " + x.arrive.replace("T", " ") : ""} · 예약번호 ${x.confirmation || "-"} · ${money(x) || "금액 미입력"}`)),
         h("button", { class: "btn sm", onclick: () => editFlight(x) }, "편집"))),
@@ -88,8 +88,8 @@ export function travelTab(P) {
 
   function askAi(kind) {
     promptModal({
-      title: kind === "flights" ? "항공편 후보 찾기 (Claude Chat 용)" : "호텔 후보 찾기 (Claude Chat 용)",
-      intro: "Desk 가 AI를 직접 부르지는 않아요. 프롬프트를 Claude Chat 에 붙여 넣고(웹 검색 켜기), 답변을 아래에 붙여 넣으면 후보가 쌓여요.",
+      title: kind === "flights" ? "항공편 후보 찾기 (AI 챗봇용)" : "호텔 후보 찾기 (AI 챗봇용)",
+      intro: "Desk 가 AI를 직접 부르지는 않아요. 프롬프트를 AI 챗봇에 붙여 넣고(웹 검색 켜기), 답변을 아래에 붙여 넣으면 후보가 쌓여요.",
       getPrompts: async () => [(await api("POST", base + "/prompt", { kind })).prompt],
       onPaste: async (text) => { const r = await api("POST", base + "/paste", { kind, text }); await load(r); toast(`후보 ${r.pasted.added}건을 가져왔어요.`); },
     });
@@ -98,8 +98,8 @@ export function travelTab(P) {
   function fromMail() {
     const ta = h("textarea", { style: "min-height:140px", placeholder: "항공권·호텔 예약 확인 메일 본문을 그대로 붙여 넣으세요 (여러 건 가능)" });
     promptModal({
-      title: "예약 확인 메일 → 기록 (Claude Chat 용)", auto: false,
-      intro: "메일 내용을 붙여 넣고 프롬프트를 만든 뒤, Claude Chat 의 답을 다시 붙여 넣으면 항공·숙소 기록이 채워져요. 같은 예약은 중복으로 넣지 않아요. 개인정보가 담긴 메일은 필요한 부분만 붙여 넣으세요.",
+      title: "예약 확인 메일 → 기록 (AI 챗봇용)", auto: false,
+      intro: "메일 내용을 붙여 넣고 프롬프트를 만든 뒤, AI 챗봇의 답을 다시 붙여 넣으면 항공·숙소 기록이 채워져요. 같은 예약은 중복으로 넣지 않아요. 개인정보가 담긴 메일은 필요한 부분만 붙여 넣으세요.",
       extraTop: (ctl) => h("div", { style: "display:flex;flex-direction:column;gap:8px" }, ta, h("button", { class: "btn primary", onclick: ctl.load }, "프롬프트 만들기")),
       getPrompts: async () => [(await api("POST", base + "/prompt", { kind: "booking", text: ta.value })).prompt],
       onPaste: async (text) => { const r = await api("POST", base + "/paste", { kind: "booking", text }); await load(r); toast(`${r.pasted.added}건을 기록했어요` + (r.pasted.existing ? ` (이미 있던 ${r.pasted.existing}건 제외)` : "")); },

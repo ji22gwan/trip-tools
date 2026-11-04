@@ -1,7 +1,7 @@
-"""키워드로 Claude Chat 에 물어볼 프롬프트를 만들고, 돌아온 답을 후보 업체로 읽는다.
+"""키워드로 AI 챗봇에 물어볼 프롬프트를 만들고, 돌아온 답을 후보 업체로 읽는다.
 
 원칙
-- Desk 는 AI 를 직접 부르지 않는다(API 키 불필요). 프롬프트를 복사해 Claude Chat 에 붙이고, 답을 다시 붙여 넣는다.
+- Desk 는 AI 를 직접 부르지 않는다(API 키 불필요). 프롬프트를 복사해 AI 챗봇에 붙이고, 답을 다시 붙여 넣는다.
 - 읽어 들인 업체는 '후보'(picked=False)로만 들어간다. 사용자가 체크한 것만 패키지에 들어간다.
 - 모든 후보에 근거 URL 과 '확인됨' 여부를 붙여, AI 가 지어낸 업체를 걸러 낼 수 있게 한다.
 """
@@ -37,7 +37,7 @@ def split_keywords(text: str) -> list[str]:
 
 
 def build_keyword_prompt(trip: dict, keywords: list[str], count: int = 20, site_url: str = "", exclude: list[str] | None = None) -> str:
-    """Claude Chat 에 그대로 붙여 넣는 프롬프트. 답변 JSON 을 Desk 에 붙여 넣으면 읽을 수 있게 형식을 고정한다."""
+    """AI 챗봇에 그대로 붙여 넣는 프롬프트. 답변 JSON 을 Desk 에 붙여 넣으면 읽을 수 있게 형식을 고정한다."""
     if not keywords:
         raise ResearchError("찾고 싶은 키워드를 한 개 이상 적어 주세요.")
     count = max(5, min(int(count or 20), 100))
@@ -75,7 +75,7 @@ Reply with ONLY one JSON object in a ```json code block and nothing else, so I c
 def extract_json(text: str) -> dict:
     m = re.search(r"```json\s*(\{.*?\})\s*```", text or "", re.S) or re.search(r"(\{.*\})", text or "", re.S)
     if not m:
-        raise ResearchError("붙여 넣은 내용에서 결과(JSON)를 찾지 못했어요. Claude 답변 전체를 복사해 붙여 넣었는지 확인해 주세요.")
+        raise ResearchError("붙여 넣은 내용에서 결과(JSON)를 찾지 못했어요. AI 답변 전체를 복사해 붙여 넣었는지 확인해 주세요.")
     try:
         return json.loads(m.group(1))
     except ValueError as e:

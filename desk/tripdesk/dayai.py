@@ -1,4 +1,4 @@
-"""하루 녹음의 교정·요약용 Claude Chat 프롬프트를 만들고, 돌아온 답을 반영한다(API 키 불필요)."""
+"""하루 녹음의 교정·요약용 AI 챗봇 프롬프트를 만들고, 돌아온 답을 반영한다(API 키 불필요)."""
 import re
 
 from .research import ResearchError, extract_json, norm_name

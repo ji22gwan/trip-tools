@@ -138,7 +138,7 @@ export async function dailyView(root, tid, n, app) {
         r.text ? h("div", { class: "box raw" }, r.text) : h("div", { class: "msg warn" }, "아직 전사가 없어요. '일간 import' 화면에서 전사를 시작하거나, 직접 입력할 수 있어요.")),
       h("div", { class: "divider" }, h("span", { class: "pill", style: "font-size:12px" }, "AI 교정 · 용어집 + 사전조사 메모")),
       h("div", { class: "field" }, h("div", { class: "row", style: "justify-content:space-between" }, h("label", {}, "교정본"), h("button", { class: "btn sm ghost", onclick: () => editBox("교정본 수정", r.corrected || r.text, (v) => api("PUT", `/trips/${tid}/days/${n}/recording`, { file: r.file, corrected: v })) }, "직접 수정")),
-        r.corrected ? h("div", { class: "box fix" }, marked(r.corrected)) : h("div", { class: "sub" }, r.text ? "아직 교정 전이에요. 아래 'AI 교정·요약' 으로 프롬프트를 만들어 Claude Chat 에 물어보세요." : "전사가 있어야 교정할 수 있어요.")),
+        r.corrected ? h("div", { class: "box fix" }, marked(r.corrected)) : h("div", { class: "sub" }, r.text ? "아직 교정 전이에요. 아래 'AI 교정·요약' 으로 프롬프트를 만들어 AI 챗봇에 물어보세요." : "전사가 있어야 교정할 수 있어요.")),
       h("div", { class: "legend" }, h("div", {}, h("i", { style: "background:var(--blue-bg);border:1px solid var(--blue)" }), "용어집·문맥으로 교정한 부분"), h("div", {}, h("i", { style: "background:var(--orange-bg);border:1px solid var(--orange)" }), "사람이 확인해야 하는 부분")),
       h("div", { class: "grow" }),
       cur.recordings.length > 1 ? h("div", { class: "row" }, ...cur.recordings.map((x, i) => h("button", { class: "btn sm" + (i === D.ri ? " primary" : ""), onclick: () => { D.ri = i; reload(); } }, `${i + 1}번째 ${x.time}`))) : null);
@@ -168,8 +168,8 @@ export async function dailyView(root, tid, n, app) {
   function saveMenu() { download(`/trips/${tid}/days/${n}/report.docx`); }
   function openAi() {
     promptModal({
-      title: `Day ${n} 교정·요약 (Claude Chat 용)`,
-      intro: "전사본에 용어집·사전조사 메모를 붙여 만든 프롬프트예요. Claude 가 고친 부분은 파랑, 불확실한 부분은 [확인필요: …] 주황으로 표시돼요. AI가 한 일은 눈으로 확인하세요 — 내 메모는 건드리지 않아요.",
+      title: `Day ${n} 교정·요약 (AI 챗봇용)`,
+      intro: "전사본에 용어집·사전조사 메모를 붙여 만든 프롬프트예요. AI 가 고친 부분은 파랑, 불확실한 부분은 [확인필요: …] 주황으로 표시돼요. AI가 한 일은 눈으로 확인하세요 — 내 메모는 건드리지 않아요.",
       getPrompts: async () => (await api("POST", `/trips/${tid}/days/${n}/prompt`, {})).prompts,
       onPaste: async (text, mode) => {
         const r = await api("POST", `/trips/${tid}/days/${n}/paste`, { text, mode });
@@ -219,7 +219,7 @@ export async function finalView(root, tid, app) {
       }) }, "저장")));
   });
   const openPrompt = () => promptModal({
-    title: "최종 총평 (Claude Chat 용)",
+    title: "최종 총평 (AI 챗봇용)",
     intro: "일자별 요약과 업체별 핵심 내용, 내 메모를 모아 총평·주요 발견·후속 조치를 쓰게 하는 프롬프트예요. 일간 보고서에서 교정·요약을 먼저 끝내 두면 결과가 좋아요.",
     getPrompts: async () => [(await api("POST", `/trips/${tid}/final/prompt`, {})).prompt],
     onPaste: async (text) => { await api("POST", `/trips/${tid}/final/paste`, { text }); toast("총평을 반영했어요."); reload(); },
