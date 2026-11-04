@@ -5,6 +5,8 @@ const DIR = { outbound: "가는 편", return: "오는 편", other: "기타" };
 const money = (x) => (x.amount == null ? "" : `${Number(x.amount).toLocaleString()} ${x.currency}`);
 const fld = (l, el, w) => h("div", { class: "field", style: w ? `width:${w}px` : "flex:1;min-width:140px" }, h("label", {}, l), el);
 
+let candTab = "flights";
+
 export function travelTab(P) {
   const host = h("div", { class: "pad" }, h("div", { class: "sub" }, "불러오는 중…"));
   const base = `/trips/${P.tid}/travel`;
@@ -42,13 +44,21 @@ export function travelTab(P) {
         h("button", { class: "btn", onclick: () => askAi("hotels") }, "호텔 후보 프롬프트 (Claude Chat)")));
 
     const c = T.candidates;
+    if (candTab === "flights" && !c.flights.length && c.hotels.length) candTab = "hotels";
+    if (candTab === "hotels" && !c.hotels.length && c.flights.length) candTab = "flights";
+    const clear = (kind) => confirmBox("후보 비우기", `${kind === "flights" ? "항공편" : "호텔"} 후보 ${c[kind].length}건을 목록에서 지울까요? (예약 기록은 지워지지 않아요)`, "비우기",
+      () => put({ candidates: { ...c, [kind]: [] } }));
+    const flightRows = c.flights.map((x) => h("div", { class: "row" }, h("div", { class: "grow" }, h("b", {}, `${x.flightNo} ${x.airline}`), h("div", { class: "sub" }, `${x.from}→${x.to} ${x.depart.replace("T", " ")} ${x.stops} ${x.price} ${x.note}`)),
+      x.sourceUrl ? h("a", { class: "btn sm", href: x.sourceUrl, target: "_blank", rel: "noopener noreferrer" }, "출처") : null,
+      h("button", { class: "btn sm", onclick: () => editFlight({ direction: "outbound", airline: x.airline, flightNo: x.flightNo, from: x.from, to: x.to, depart: x.depart, arrive: x.arrive }) }, "예약 기록으로")));
+    const hotelRows = c.hotels.map((x) => h("div", { class: "row" }, h("div", { class: "grow" }, h("b", {}, `${x.name} ${x.stars ? x.stars + "성" : "등급 미확인"}`), h("div", { class: "sub" }, `${x.distance} · ${x.price} · ${x.cancellation} ${x.note}`)),
+      x.sourceUrl ? h("a", { class: "btn sm", href: x.sourceUrl, target: "_blank", rel: "noopener noreferrer" }, "출처") : null,
+      h("button", { class: "btn sm", onclick: () => editHotel({ name: x.name, stars: x.stars, address: x.address, checkIn: links.dates.checkIn, checkOut: links.dates.checkOut }) }, "예약 기록으로")));
     const cand = c.flights.length || c.hotels.length ? h("div", { class: "card" }, h("h3", {}, "AI 후보 (가격·가용 여부는 사이트에서 확인)"),
-      ...c.flights.map((x) => h("div", { class: "row" }, h("div", { class: "grow" }, h("b", {}, `${x.flightNo} ${x.airline}`), h("div", { class: "sub" }, `${x.from}→${x.to} ${x.depart.replace("T", " ")} ${x.stops} ${x.price} ${x.note}`)),
-        x.sourceUrl ? h("a", { class: "btn sm", href: x.sourceUrl, target: "_blank", rel: "noopener noreferrer" }, "출처") : null,
-        h("button", { class: "btn sm", onclick: () => editFlight({ direction: "outbound", airline: x.airline, flightNo: x.flightNo, from: x.from, to: x.to, depart: x.depart, arrive: x.arrive }) }, "예약 기록으로"))),
-      ...c.hotels.map((x) => h("div", { class: "row" }, h("div", { class: "grow" }, h("b", {}, `${x.name} ${x.stars ? x.stars + "성" : "등급 미확인"}`), h("div", { class: "sub" }, `${x.distance} · ${x.price} · ${x.cancellation} ${x.note}`)),
-        x.sourceUrl ? h("a", { class: "btn sm", href: x.sourceUrl, target: "_blank", rel: "noopener noreferrer" }, "출처") : null,
-        h("button", { class: "btn sm", onclick: () => editHotel({ name: x.name, stars: x.stars, address: x.address, checkIn: links.dates.checkIn, checkOut: links.dates.checkOut }) }, "예약 기록으로")))) : null;
+      h("div", { class: "row", style: "flex-wrap:wrap" },
+        ...[["flights", "항공편"], ["hotels", "호텔"]].map(([k, label]) => h("button", { class: "chip" + (candTab === k ? " on" : ""), onclick: () => { candTab = k; draw(); } }, `${label} ${c[k].length}`)),
+        h("button", { class: "btn sm danger", style: "margin-left:auto", disabled: !c[candTab].length, onclick: () => clear(candTab) }, candTab === "flights" ? "항공편 후보 비우기" : "호텔 후보 비우기")),
+      ...(c[candTab].length ? (candTab === "flights" ? flightRows : hotelRows) : [h("div", { class: "sub" }, "이 목록은 비어 있어요. 위의 프롬프트 버튼으로 후보를 받아 보세요.")])) : null;
 
     const rec = h("div", { class: "card" }, h("h3", {}, "예약 기록"),
       h("div", { class: "row", style: "flex-wrap:wrap" }, h("button", { class: "btn primary", onclick: () => editFlight({ direction: "outbound" }) }, "+ 항공권"), h("button", { class: "btn primary", onclick: () => editHotel({ checkIn: links.dates.checkIn, checkOut: links.dates.checkOut }) }, "+ 숙소"),
