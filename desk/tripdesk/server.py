@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import companies_io, daily, dayai, mapfinder, package, reports, research, transcribe
+from . import companies_io, daily, dayai, mapfinder, package, reports, research, transcribe, travel
 from .store import Store, StoreError
 
 WEB = Path(__file__).parent / "web"
@@ -91,6 +91,46 @@ class Api:
     @route("GET", r"/api/trips/(?P<tid>[^/]+)")
     def get_trip(self, m, q, body):
         return self.trip_view(m["tid"])
+
+    def travel_view(self, tid):
+        trip = self.store.get_trip(tid)
+        tr = travel.get(self.store, tid)
+        return {"travel": tr, "links": travel.links(trip, tr), "summary": travel.summary(tr, trip)}
+
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/travel")
+    def get_travel(self, m, q, body):
+        return self.travel_view(m["tid"])
+
+    @route("PUT", r"/api/trips/(?P<tid>[^/]+)/travel")
+    def put_travel(self, m, q, body):
+        travel.save(self.store, m["tid"], jbody(body))
+        return self.travel_view(m["tid"])
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/travel/prompt")
+    def travel_prompt(self, m, q, body):
+        d = jbody(body)
+        trip, tr = self.store.get_trip(m["tid"]), travel.get(self.store, m["tid"])
+        kind = d.get("kind")
+        if kind == "flights":
+            return {"prompt": travel.build_flight_prompt(trip, tr)}
+        if kind == "hotels":
+            return {"prompt": travel.build_hotel_prompt(trip, tr)}
+        if kind == "booking":
+            if not str(d.get("text") or "").strip():
+                raise StoreError("예약 확인 메일·문자 내용을 붙여 넣어 주세요.")
+            return {"prompt": travel.build_booking_prompt(d["text"])}
+        raise StoreError("알 수 없는 종류예요.")
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/travel/paste")
+    def travel_paste(self, m, q, body):
+        d = jbody(body)
+        if d.get("kind") not in ("flights", "hotels", "booking"):
+            raise StoreError("알 수 없는 종류예요.")
+        try:
+            r = travel.paste(self.store, m["tid"], d["kind"], str(d.get("text") or ""))
+        except research.ResearchError as e:
+            raise StoreError(str(e))
+        return dict(self.travel_view(m["tid"]), pasted=r)
 
     @route("PUT", r"/api/trips/(?P<tid>[^/]+)/hall-pins")
     def put_hall_pins(self, m, q, body):

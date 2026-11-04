@@ -17,6 +17,7 @@ export function headerHtml(trip, day, { showGear = true } = {}) {
         </div>
         <div class="row" style="gap:0">
           <span class="pill pill-blue pill-offline" id="netPill">온라인</span>
+          ${(trip.bookings?.flights?.length || trip.bookings?.hotels?.length) ? `<button class="icon-btn" id="tripInfoBtn" aria-label="항공·숙소" style="font-size:20px">✈</button>` : ""}
           ${showGear ? `<button class="icon-btn" id="gearBtn" aria-label="설정">${icons.gear(24)}</button>` : ""}
         </div>
       </div>
@@ -28,6 +29,7 @@ export function bindHeader(root, trip, ctx) {
     db.setSelectedDay(trip.id, Number(e.target.value));
     ctx.rerender();
   });
+  root.querySelector("#tripInfoBtn")?.addEventListener("click", () => openBookings(trip));
   root.querySelector("#gearBtn")?.addEventListener("click", () => {
     location.hash = "#/settings";
   });
@@ -209,4 +211,21 @@ export function openTranslate({ initialText = "", onInsert, micBusy } = {}) {
   }
   if (initialText) setTimeout(run, 0);
   return close;
+}
+
+// ---------- 항공·숙소 (Desk 에서 기록한 예약, 읽기 전용) ----------
+const fmtDT = (s) => String(s || "").replace("T", " ");
+export function openBookings(trip) {
+  const { flights = [], hotels = [] } = trip.bookings || {};
+  const map = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  const fl = flights.map((f) => `<div class="card stack" style="gap:4px"><div style="font-weight:800">${esc(f.flightNo)} ${esc(f.airline)}</div>
+      <div>${esc(f.from)} → ${esc(f.to)}</div><div class="small">${esc(fmtDT(f.depart))}${f.arrive ? " → " + esc(fmtDT(f.arrive)) : ""} (현지 시각)</div>
+      <div class="small">예약번호 <b>${esc(f.confirmation || "-")}</b>${f.baggage ? " · 수하물 " + esc(f.baggage) : ""}</div></div>`).join("");
+  const ho = hotels.map((x) => `<div class="card stack" style="gap:4px"><div style="font-weight:800">${esc(x.name)}${x.stars ? " · " + x.stars + "성" : ""}</div>
+      <div class="small">${esc(x.checkIn)} ~ ${esc(x.checkOut)}</div>
+      ${x.address ? `<a href="${map(x.name + " " + x.address)}" target="_blank" rel="noopener noreferrer" class="small">${esc(x.address)} (지도 앱으로 열기)</a>` : ""}
+      <div class="small">예약번호 <b>${esc(x.confirmation || "-")}</b>${x.freeCancelUntil ? " · 무료취소 ~" + esc(fmtDT(x.freeCancelUntil)) : ""}</div></div>`).join("");
+  const { el, close } = openSheet(`<div class="sheet-head"><h2 class="sheet-title">항공·숙소</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
+    <div class="stack">${fl}${ho}</div>`);
+  el.querySelector("[data-close]").onclick = close;
 }

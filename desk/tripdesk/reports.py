@@ -87,11 +87,37 @@ def build_final(store: Store, tid: str) -> dict:
     return {
         "tripName": trip["name"], "venue": trip.get("venue", ""), "purpose": trip.get("purpose", ""), "dates": trip["days"],
         "days": days, "companies": sorted(merged.values(), key=lambda m: (m["category"], m["name"])),
+        "travel": _travel(store, tid, trip),
         "notVisited": not_visited, "checks": [dict(x, day=d["day"]) for d in days for x in d["checks"]],
         "final": {"overview": final.get("overview", ""), "highlights": final.get("highlights", []), "followups": final.get("followups", [])},
         "totals": {k: sum(d["stats"].get(k, 0) for d in days) for k in ("recordings", "memos", "photos", "audioSeconds")}
         | {"companies": len(merged), "newCompanies": sum(1 for m in merged.values() if m["addedOnSite"]), "days": len(days)},
     }
+
+
+def _travel(store: Store, tid: str, trip: dict) -> dict:
+    from . import travel
+
+    tr = travel.get(store, tid)
+    return {"flights": tr["flights"], "hotels": tr["hotels"], "totals": travel.summary(tr, trip)["totals"]}
+
+
+def fmt_money(totals: dict) -> str:
+    return " + ".join(f"{v:,.0f} {k}" if float(v).is_integer() else f"{v:,.2f} {k}" for k, v in totals.items()) or "기록 없음"
+
+
+def travel_lines(tv: dict) -> list[str]:
+    """보고서에 넣을 이동·숙소·비용 줄. 기록이 없으면 빈 목록."""
+    L = []
+    for f in tv["flights"]:
+        amt = f" · {f['amount']:,.0f} {f['currency']}" if f.get("amount") is not None else ""
+        L.append(f"항공 {f['flightNo']} {f['airline']} {f['from']}→{f['to']} {f['depart'].replace('T', ' ')}{amt}".replace("  ", " ").strip())
+    for x in tv["hotels"]:
+        amt = f" · {x['amount']:,.0f} {x['currency']}" if x.get("amount") is not None else ""
+        L.append(f"숙소 {x['name']} {x['checkIn']}~{x['checkOut']}{amt}".strip())
+    if L and tv["totals"]:
+        L.append("합계 " + fmt_money(tv["totals"]))
+    return L
 
 
 def local_hm(iso: str, offset_min) -> str:
@@ -140,6 +166,9 @@ def final_markdown(r: dict) -> str:
     if r["purpose"]:
         L += ["## 출장 목적", r["purpose"], ""]
     L += ["## 개요", f"방문 업체 {t['companies']}곳(현장 추가 {t['newCompanies']}곳), 녹음 {t['recordings']}건, 메모 {t['memos']}건, 사진 {t['photos']}장.", ""]
+    tl = travel_lines(r["travel"])
+    if tl:
+        L += ["## 이동·숙소·비용", *[f"- {x}" for x in tl], ""]
     f = r["final"]
     if f["overview"]:
         L += ["## 총평", f["overview"], ""]
@@ -262,6 +291,11 @@ def final_docx(store: Store, tid: str, r: dict) -> bytes:
         d.add_paragraph(r["purpose"])
     d.add_heading("개요", 1)
     d.add_paragraph(f"방문 업체 {t['companies']}곳(현장 추가 {t['newCompanies']}곳), 녹음 {t['recordings']}건, 메모 {t['memos']}건, 사진 {t['photos']}장.")
+    tl = travel_lines(r["travel"])
+    if tl:
+        d.add_heading("이동·숙소·비용", 1)
+        for x in tl:
+            d.add_paragraph(x, style="List Bullet")
     f = r["final"]
     for title, body in (("총평", f["overview"]),):
         if body:

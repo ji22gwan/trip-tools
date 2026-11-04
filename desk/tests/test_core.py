@@ -129,3 +129,30 @@ def test_hall_pins_clean_and_in_package(store):
     _, data = package.build_package(store, t["id"])
     z = zipfile.ZipFile(io.BytesIO(data))
     assert json.loads(z.read("trip_SPS_2026/trip.json"))["hallPins"]["3A"]["x"] == 0.31
+
+
+def test_travel_links_prompts_and_records(store):
+    from tripdesk import travel
+
+    t = new_trip(store)
+    tid = t["id"]
+    tr = travel.save(store, tid, {"origin": "ICN", "destination": "NUE", "minStars": 4, "maxStars": 3})
+    assert (tr["minStars"], tr["maxStars"]) == (3, 4)  # 순서가 뒤집혀도 바로잡는다
+    ln = travel.links(store.get_trip(tid), tr)
+    assert "ICN" in ln["flights"][0]["url"] and any("skyscanner" in x["url"] for x in ln["flights"])
+    agoda = next(x for x in ln["hotels"] if x["name"] == "Agoda")["url"]
+    assert "minStarRating=3" in agoda and "maxStarRating=4" in agoda and t["days"][0] in agoda
+    assert "class%3D3" in next(x for x in ln["hotels"] if x["name"] == "Booking.com")["url"]
+    hp = travel.build_hotel_prompt(store.get_trip(tid), tr)
+    assert "3성 이상 4성 이하" in hp and "리뷰 평점이 아니라" in hp
+    reply = '```json\n{"flights":[{"direction":"outbound","flightNo":"lh713","airline":"Lufthansa","from":"ICN","to":"FRA","depart":"2026-11-22 13:00","confirmation":"ABC123","amount":"1,250,000","currency":"krw"}],"hotels":[{"name":"Hotel X","stars":4,"checkIn":"2026-11-23","checkOut":"2026-11-25","amount":420,"currency":"EUR"}]}\n```'
+    assert travel.paste(store, tid, "booking", reply)["added"] == 2
+    assert travel.paste(store, tid, "booking", reply) == {"added": 0, "existing": 2}  # 같은 예약은 중복으로 넣지 않는다
+    tr = travel.get(store, tid)
+    assert tr["flights"][0]["flightNo"] == "LH713" and tr["flights"][0]["amount"] == 1250000 and tr["flights"][0]["depart"] == "2026-11-22T13:00"
+    sm = travel.summary(tr, store.get_trip(tid))
+    assert sm["totals"] == {"KRW": 1250000.0, "EUR": 420.0}
+    assert any("오는 항공편" in x for x in sm["issues"]) and any("체크아웃" in x for x in sm["issues"])
+    _, data = package.build_package(store, tid)
+    z = zipfile.ZipFile(io.BytesIO(data))
+    assert json.loads(z.read(next(n for n in z.namelist() if n.endswith("trip.json"))))["bookings"]["hotels"][0]["name"] == "Hotel X"

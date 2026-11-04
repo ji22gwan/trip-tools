@@ -134,6 +134,7 @@ export async function importTripPackage(file) {
     days: tripIn.days,
     glossary,
     hallPins: cleanPins(tripIn.hallPins),
+    bookings: { flights: Array.isArray(tripIn.bookings?.flights) ? tripIn.bookings.flights : [], hotels: Array.isArray(tripIn.bookings?.hotels) ? tripIn.bookings.hotels : [] },
     createdAt: existingTrip?.createdAt || Date.now(),
   };
   await db.put("trips", trip);

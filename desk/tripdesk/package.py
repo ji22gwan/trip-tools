@@ -5,6 +5,7 @@ import re
 import zipfile
 
 from . import SCHEMA_VERSION, research
+from . import travel
 from .store import Store, StoreError, hall_key
 
 
@@ -16,6 +17,12 @@ def _slug(name: str) -> str:
 def picked(companies: list[dict]) -> list[dict]:
     """패키지에 들어갈 업체: 후보로만 있는(picked=False) 것은 빼고, 직접 만들거나 가져온 것은 넣는다."""
     return [c for c in companies if c.get("picked") is not False]
+
+
+def _bookings(store, trip_id) -> dict:
+    """폰에 보여 줄 항공·숙소 기록 (후보 목록은 제외)."""
+    tr = travel.get(store, trip_id)
+    return {"flights": tr["flights"], "hotels": tr["hotels"]}
 
 
 def check(store: Store, trip_id: str) -> list[str]:
@@ -52,6 +59,7 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "venue": trip.get("venue", ""),
         "purpose": trip.get("purpose", ""),
         "days": trip["days"],
+        "bookings": _bookings(store, trip_id),
         "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다
     }
     companies = [

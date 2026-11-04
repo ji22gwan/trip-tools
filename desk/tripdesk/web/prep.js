@@ -1,4 +1,5 @@
 import { pinsPanel } from "./pins.js";
+import { travelTab } from "./travel.js";
 import { h, api, toast, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
 
 const P = { tab: "cands", cat: "전체", q: "", v: null, tid: null, found: null };
@@ -93,10 +94,10 @@ function leftCol(s) {
 
 // ---------------- 오른쪽: 탭 ----------------
 function panel(s) {
-  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["gloss", "용어집"]];
+  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["travel", "항공·숙소"], ["gloss", "용어집"]];
   return h("div", { class: "panel" },
     h("div", { class: "tabs", role: "tablist" }, ...tabs.map(([k, label]) => h("button", { class: P.tab === k ? "on" : "", role: "tab", onclick: () => { P.tab = k; redraw(); } }, label))),
-    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : glossTab(),
+    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "travel" ? travelTab(P) : glossTab(),
   );
 }
 

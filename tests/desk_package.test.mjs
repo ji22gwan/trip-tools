@@ -30,13 +30,14 @@ const py = `
 import sys, pathlib
 sys.path.insert(0, "desk")
 from tripdesk.store import Store
-from tripdesk import companies_io, package
+from tripdesk import companies_io, package, travel
 s = Store(pathlib.Path(sys.argv[1]))
 t = s.create_trip("테스트 전시회", "Messe", "2026-11-24", "2026-11-25", "목적")
 s.add_map(t["id"], "plan.png", open(sys.argv[2], "rb").read())
 rows, _ = companies_io.parse_companies("l.csv", "업체명,카테고리,홀,부스,일차,질문\\nA사,로봇,3A,1,1,가동 시간; 가격\\nB사,센서,3,2,2,\\n".encode(), t["days"])
 s.set_companies(t["id"], companies_io.merge_companies([], rows)[0])
 s.set_glossary(t["id"], ["EtherCAT"])
+travel.save(s, t["id"], {"hotels": [{"name": "Hotel X", "stars": 4, "address": "Hauptstr. 1", "checkIn": "2026-11-24", "checkOut": "2026-11-25", "confirmation": "H1"}]})
 s.update_trip(t["id"], hallPins={"Hall 3A": {"x": 0.25, "y": 0.5, "page": 0}})
 name, data = package.build_package(s, t["id"])
 sys.stdout.buffer.write(data)
@@ -57,6 +58,8 @@ test("Trip Desk 패키지를 폰 앱이 불러온다", async () => {
   const cs = await model.listCompanies(r.trip.id);
   // 홀 위치가 폰까지 오고, 1일차 업체가 홀별로 묶여 지도에 표시된다
   assert.deepEqual(r.trip.hallPins["3A"], { x: 0.25, y: 0.5, page: 0 });
+  assert.equal(r.trip.bookings.hotels[0].name, "Hotel X");
+  assert.deepEqual(r.trip.bookings.flights, []);
   const hm = model.hallMarkers(cs, 1, r.trip.hallPins);
   assert.equal(hm.markers.length, 1);
   assert.equal(hm.markers[0].key, "3A");
