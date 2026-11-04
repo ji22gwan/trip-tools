@@ -73,6 +73,7 @@ export async function pinsPanel(P, redraw) {
   const box = h("div", { style: "position:relative;overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:10px;background:#eef1f4" });
   const list = h("div", { class: "chips" });
   const dayRow = h("div", { class: "chips" });
+  const delBtn = h("button", { class: "btn", onclick: () => { delete pins[sel]; paint(); } }, "");
   card.append(h("div", { class: "msg" }, `'${primary.name}' 위에서 홀마다 한 번씩 클릭하세요. 폰 지도에는 이 위치에 그날 방문할 업체 수가 표시돼요. 홀 이름: 선택된 업체 기준 ${halls.length}곳.`), dayRow, list, status, box);
   let pages = [];
   let page = 0;
@@ -80,6 +81,9 @@ export async function pinsPanel(P, redraw) {
 
   const dayCount = (key) => picked.filter((c) => hallKey(c.hall) === key && (!dayFilter || c.day === dayFilter)).length;
   const paint = () => {
+    delBtn.textContent = `${sel} 위치 지우기`; // 선택한 홀이 바뀔 때마다 이름을 갱신한다
+    delBtn.disabled = !pins[sel];
+    status.textContent = `${Object.keys(pins).filter((k) => halls.includes(k)).length}/${halls.length}곳 지정됨 · 지금 찍을 홀: ${sel}`;
     list.replaceChildren(...halls.map((k) => h("button", { class: "chip" + (k === sel ? " on" : ""), onclick: () => { sel = k; paint(); } },
       `${pins[k] ? "📍" : "·"} ${k} (${dayCount(k) || picked.filter((c) => hallKey(c.hall) === k).length})`)));
     dayRow.replaceChildren(h("span", { class: "sub" }, "보기:"), ...[0, ...trip.days.map((_, i) => i + 1)].map((d) =>
@@ -110,7 +114,6 @@ export async function pinsPanel(P, redraw) {
     });
     box.append(wrap);
     show();
-    status.textContent = `${Object.keys(pins).filter((k) => halls.includes(k)).length}/${halls.length}곳 지정됨`;
     const pager = pages.length > 1 ? h("div", { class: "row" }, ...pages.map((_, i) => h("button", { class: "btn sm" + (i === page ? " primary" : ""), onclick: () => { page = i; show(); } }, `${i + 1}쪽`))) : null;
     const auto = h("button", { class: "btn", onclick: () => {
       const todo = halls.filter((k) => !pins[k]);
@@ -122,7 +125,7 @@ export async function pinsPanel(P, redraw) {
       toast(n ? `지도 글자에서 ${n}곳을 찾았어요. 위치가 맞는지 확인하고 저장하세요.` : "지도에서 홀 이름 글자를 찾지 못했어요. 직접 클릭해 주세요.", !n);
     } }, "지도 글자에서 자동 찾기");
     card.append(h("div", { class: "row" }, auto,
-      h("button", { class: "btn", onclick: () => { delete pins[sel]; paint(); } }, `${sel} 위치 지우기`),
+      delBtn,
       h("button", { class: "btn primary", onclick: save }, "저장")), pager);
   } catch (e) {
     status.textContent = "지도를 화면에 그리지 못했어요: " + (e.message || e);
