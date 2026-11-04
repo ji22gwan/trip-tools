@@ -11,3 +11,4 @@ settings.json
 !sample/*.zip
 .DS_Store
 .deploy.toml
+field-pwa/config.json

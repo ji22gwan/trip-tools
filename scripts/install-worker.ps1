@@ -29,6 +29,23 @@ New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 $state = @{}
 if (Test-Path $StateFile) { (Get-Content $StateFile -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $state[$_.Name] = $_.Value } }
 
+# 내 ID: 서버·폰 앱 이름에 붙어 나만의 주소가 된다(trip-field-ID.pages.dev). 각자 자기 Cloudflare 계정에 설치하므로 저장공간도 사람마다 따로예요.
+$hadState = Test-Path $StateFile
+$id = if ($env:TRIP_ID) { $env:TRIP_ID } elseif ($state['ID']) { $state['ID'] } else { '' }
+if (-not $id -and -not $hadState -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+  Say '내 ID 정하기'
+  Write-Host '영문 소문자·숫자·하이픈만, 2~20자 (예: ji). 이 ID 로 나만의 주소가 만들어져요.'
+  while ($true) {
+    $id = (Read-Host 'ID').Trim().ToLower()
+    if ($id -match '^[a-z][a-z0-9-]{1,19}$') { break }
+    Write-Host '형식이 맞지 않아요. 영문 소문자로 시작하고 영문 소문자·숫자·하이픈만 쓸 수 있어요.'
+  }
+}
+if ($id) {
+  if ($id -notmatch '^[a-z][a-z0-9-]{1,19}$') { Die 'ID 형식이 맞지 않아요(영문 소문자로 시작, 영문 소문자·숫자·하이픈, 2~20자).' }
+  $WorkerName = "trip-translate-$id"; $PagesName = "trip-field-$id"
+} elseif ($state['WORKER_NAME']) { $WorkerName = $state['WORKER_NAME']; $PagesName = $state['PAGES_NAME'] }
+
 Say '1/6 도구 설치 (wrangler)'
 Push-Location (Join-Path $Root 'worker'); try { & npm.cmd install --no-audit --no-fund --loglevel=error; if ($LASTEXITCODE -ne 0) { Die 'npm install 에 실패했어요.' } } finally { Pop-Location }
 
@@ -121,7 +138,14 @@ try {
   if ($r.Code -ne 0) { Write-Host $r.Out; Die '비밀 값 등록에 실패했어요.' }
 } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 
-@{ WORKER_NAME = $WorkerName; PAGES_NAME = $PagesName; WORKER_URL = $workerUrl; PAGES_URL = $pagesUrl; GEMINI_MODEL = $model; KV_ID = $kvId; TOKEN = $token } |
+# 폰 앱에 내 서버 주소를 미리 넣어 다시 배포한다(폰에서는 토큰만 입력하면 되도록)
+if ($env:SKIP_PAGES -ne '1' -and $workerUrl) {
+  [IO.File]::WriteAllText((Join-Path $Root 'field-pwa\config.json'), (@{ workerUrl = $workerUrl } | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding $false))
+  $rp = Run-Wr @('pages', 'deploy', (Join-Path $Root 'field-pwa'), '--project-name', $PagesName, '--branch', 'main')
+  if ($rp.Code -ne 0) { Write-Host '참고: 서버 주소를 앱에 미리 넣지 못했어요. 폰 설정에서 직접 입력해 주세요.' }
+}
+
+@{ ID = $id; WORKER_NAME = $WorkerName; PAGES_NAME = $PagesName; WORKER_URL = $workerUrl; PAGES_URL = $pagesUrl; GEMINI_MODEL = $model; KV_ID = $kvId; TOKEN = $token } |
   ConvertTo-Json | Set-Content -Path $StateFile -Encoding UTF8
 
 Write-Host @"
@@ -135,7 +159,7 @@ Write-Host @"
   모델            : $model
 
 폰에서: 1) 폰 앱 주소를 열고 '홈 화면에 추가'
-        2) 설정(톱니바퀴)에 '번역 서버 주소'와 '접근 토큰'을 입력하고 '연결 시험'
+        2) 설정(톱니바퀴)에 위 '접근 토큰'만 붙여 넣고 '연결 시험'  (서버 주소는 미리 들어 있어요)
 토큰은 $StateFile 에도 저장돼 있어요.
 =====================================================
 "@ -ForegroundColor Green

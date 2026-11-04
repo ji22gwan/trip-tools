@@ -106,7 +106,21 @@ async function render() {
 
 window.addEventListener("hashchange", () => render());
 
+// 설치할 때 배포된 config.json 에 내 서버 주소가 있으면 설정에 미리 채운다 (이미 입력된 값은 건드리지 않는다)
+async function prefillServer() {
+  try {
+    if (db.loadSettings().workerUrl) return;
+    const res = await fetch("config.json", { cache: "no-cache" });
+    if (!res.ok) return;
+    const cfg = await res.json();
+    if (typeof cfg.workerUrl === "string" && /^https:\/\//.test(cfg.workerUrl)) db.saveSettings({ workerUrl: cfg.workerUrl });
+  } catch {
+    /* 없으면 직접 입력 */
+  }
+}
+
 async function boot() {
+  await prefillServer();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW 등록 실패", e));
   }

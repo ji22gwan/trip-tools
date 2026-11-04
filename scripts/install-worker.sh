@@ -22,8 +22,26 @@ NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
 [ "$NODE_MAJOR" -ge 18 ] || die "Node.js 18 이상이 필요해요(현재 $(node -v))."
 
 mkdir -p "$STATE_DIR"; chmod 700 "$STATE_DIR" 2>/dev/null || true
+HAD_STATE=0; [ -f "$STATE_FILE" ] && HAD_STATE=1
 # shellcheck disable=SC1090
 [ -f "$STATE_FILE" ] && . "$STATE_FILE" || true
+
+# 내 ID: 서버·폰 앱 이름에 붙어 나만의 주소가 된다(trip-field-ID.pages.dev). 각자 자기 Cloudflare 계정에 설치하므로 저장공간도 사람마다 따로예요.
+ID="${TRIP_ID:-${ID:-}}"
+if [ -z "$ID" ] && [ "$HAD_STATE" = "0" ] && [ -t 0 ]; then
+  say "내 ID 정하기"
+  echo "영문 소문자·숫자·하이픈만, 2~20자 (예: ji). 이 ID 로 나만의 주소가 만들어져요."
+  while :; do
+    printf 'ID: '; read -r ID || true
+    ID="$(printf '%s' "$ID" | tr 'A-Z' 'a-z')"
+    if printf '%s' "$ID" | grep -Eq '^[a-z][a-z0-9-]{1,19}$'; then break; fi
+    echo "형식이 맞지 않아요. 영문 소문자로 시작하고 영문 소문자·숫자·하이픈만 쓸 수 있어요."
+  done
+fi
+if [ -n "$ID" ]; then
+  printf '%s' "$ID" | grep -Eq '^[a-z][a-z0-9-]{1,19}$' || die "ID 형식이 맞지 않아요(영문 소문자로 시작, 영문 소문자·숫자·하이픈, 2~20자)."
+  WORKER_NAME="trip-translate-$ID"; PAGES_NAME="trip-field-$ID"
+fi
 
 say "1/6 도구 설치 (wrangler)"
 ( cd "$ROOT/worker" && npm install --no-audit --no-fund --loglevel=error )
@@ -108,8 +126,15 @@ SECRETS="$(mktemp)"; trap 'rm -f "$SECRETS"' EXIT; chmod 600 "$SECRETS"
 node -e 'process.stdout.write(JSON.stringify({GEMINI_API_KEY:process.argv[1],TOKENS:process.argv[2]}))' "$GEMINI_API_KEY" "$TOKEN" > "$SECRETS"
 ( cd "$ROOT/worker" && npx --no-install wrangler secret bulk "$SECRETS" --name "$WORKER_NAME" ) >/dev/null || die "비밀 값 등록에 실패했어요."
 
+# 폰 앱에 내 서버 주소를 미리 넣어 다시 배포한다(폰에서는 토큰만 입력하면 되도록)
+if [ "${SKIP_PAGES:-0}" != "1" ] && [ -n "$WORKER_URL" ]; then
+  printf '{"workerUrl":"%s"}\n' "$WORKER_URL" > "$ROOT/field-pwa/config.json"
+  ( cd "$ROOT/worker" && npx --no-install wrangler pages deploy "$ROOT/field-pwa" --project-name "$PAGES_NAME" --branch main >/dev/null 2>&1 ) || echo "참고: 서버 주소를 앱에 미리 넣지 못했어요. 폰 설정에서 직접 입력해 주세요."
+fi
+
 umask 077
 cat > "$STATE_FILE" <<STATE
+ID="$ID"
 WORKER_NAME="$WORKER_NAME"
 PAGES_NAME="$PAGES_NAME"
 WORKER_URL="$WORKER_URL"
@@ -130,8 +155,8 @@ cat <<DONE
   접근 토큰       : $TOKEN
   모델            : $GEMINI_MODEL
 
-폰에서: ① 폰 앱 주소를 열고 '홈 화면에 추가'
-        ② 설정(톱니바퀴)에 '번역 서버 주소'와 '접근 토큰'을 입력하고 '연결 시험'
+폰에서: ① 위 '폰 앱 주소'를 열고 '홈 화면에 추가'
+        ② 설정(톱니바퀴)에 위 '접근 토큰'만 붙여 넣고 '연결 시험'  (서버 주소는 미리 들어 있어요)
 출장 패키지 보관함: $( [ -n "${KV_ID:-}" ] && echo "사용 가능 (Desk 에서 바로 보내기)" || echo "만들지 못함 (ZIP 으로 옮기기)" )
 토큰은 $STATE_FILE 에도 저장돼 있어요(본인만 읽을 수 있음).
 번역이 느리면 번역 팝업 아래의 시간 표시를 확인하세요.

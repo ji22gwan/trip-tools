@@ -20,6 +20,8 @@
 | Trip Desk 삭제 | `scripts/uninstall-desk.sh` | `scripts\uninstall-desk.bat` |
 
 - 번역 서버 설치에는 Node.js 18+, Cloudflare 계정(무료), Gemini API 키가 필요해요. 스크립트가 로그인 → 배포 → 접근 토큰 생성·등록까지 하고, 마지막에 **폰 앱 주소 / 번역 서버 주소 / 토큰**을 알려 줘요.
+- **사람마다 따로**: 각자 자기 Cloudflare 계정(무료)으로 설치해요. 설치할 때 **내 ID**(영문 소문자·숫자·하이픈, 예: `ji`)를 정하면 서버 `trip-translate-ji`, 폰 앱 `https://trip-field-ji.pages.dev` 처럼 나만의 주소가 만들어지고, 저장공간·한도·데이터도 내 계정 것만 써요. 설치 순서는 ID 입력 → Cloudflare 로그인 → Gemini 키 → 끝(토큰이 화면에 나와요). 폰 앱에는 내 서버 주소가 미리 들어가서 폰에서는 토큰만 붙여 넣으면 돼요. (한 계정을 여럿이 나눠 쓰면 무료 한도를 같이 쓰게 돼요.)
+- 이미 ID 없이 설치했다면 다시 실행해도 예전 이름(`trip-translate`, `trip-field`)을 그대로 써요. ID 주소로 옮기려면 `TRIP_ID=ji ./scripts/install-worker.sh` (새 주소가 생기고 폰 앱·토큰도 새로 설정).
 - 다시 실행해도 안전해요(토큰은 그대로, 코드만 갱신). 모델을 바꾸려면 `GEMINI_MODEL=모델ID ./scripts/install-worker.sh`.
 - 삭제 스크립트는 Cloudflare 의 Worker(Gemini 키·토큰 포함)와 Pages 프로젝트를 지우고, 지우기 전에 '삭제' 를 입력하게 해요. **Gemini API 키 폐기는 Google AI Studio 에서 직접** 해야 해요.
 - Trip Desk 삭제는 프로그램만 지우고, 출장 데이터(`~/TripDesk`)는 물어본 뒤에만 지워요.

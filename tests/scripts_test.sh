@@ -70,6 +70,18 @@ STUB_LIST_FAIL=1 GEMINI_API_KEY="AIza-test-key" bash "$REPO/scripts/install-work
 grep -q 'ALLOWED_ORIGIN:https://trip-field.pages.dev$' "$LOG" || fail "폴백이 배포 코드를 떼지 못함"
 ok "install-worker: 프로젝트 고정 주소 사용(조회 실패 시 폴백)"
 
+# ID 를 주면 서버·앱 이름에 붙고, 폰 앱에 서버 주소가 미리 들어간다
+: > "$LOG"
+TRIP_TOOLS_HOME="$T/home/.trip-tools-ji" TRIP_ID=ji GEMINI_API_KEY="AIza-test-key" bash "$REPO/scripts/install-worker.sh" < /dev/null > "$T/out2c.txt" 2>&1 || { cat "$T/out2c.txt"; fail "ID 설치 실패"; }
+grep -q 'wrangler deploy .*--name trip-translate-ji' "$LOG" || fail "Worker 이름에 ID 가 붙지 않음"
+grep -q 'project-name trip-field-ji' "$LOG" || fail "Pages 이름에 ID 가 붙지 않음"
+grep -q 'ID="ji"' "$T/home/.trip-tools-ji/install.env" || fail "ID 가 기록되지 않음"
+grep -q '"workerUrl":"https://trip-translate.acct.workers.dev"' "$REPO/field-pwa/config.json" || fail "폰 앱에 서버 주소가 안 들어감"
+[ "$(grep -c 'pages deploy' "$LOG")" -ge 2 ] || fail "서버 주소를 넣은 재배포가 없음"
+rm -f "$REPO/field-pwa/config.json"
+if TRIP_TOOLS_HOME="$T/home/.trip-tools-bad" TRIP_ID="Bad_ID" GEMINI_API_KEY=x bash "$REPO/scripts/install-worker.sh" < /dev/null > "$T/out2d.txt" 2>&1; then fail "잘못된 ID 를 받아들임"; fi
+ok "install-worker: ID 로 내 주소 만들기 + 폰 앱에 서버 주소 미리 넣기"
+
 # 키 없이 비대화 실행하면 친절히 실패
 if env -u GEMINI_API_KEY bash "$REPO/scripts/install-worker.sh" < /dev/null > "$T/out3.txt" 2>&1; then fail "키 없이 성공해버림"; fi
 ok "install-worker: 키가 없으면 실패"
@@ -119,4 +131,5 @@ bash "$REPO/scripts/install-desk.sh" > /dev/null 2>&1
 YES=1 PURGE_DATA=1 bash "$REPO/scripts/uninstall-desk.sh" > "$T/d3.txt" 2>&1 || fail "purge 실패"
 [ ! -d "$TRIPDESK_HOME" ] || fail "PURGE_DATA=1 인데 데이터가 남음"
 ok "uninstall-desk: 데이터까지 삭제 옵션"
+rm -f "$REPO/field-pwa/config.json"
 echo "ALL OK"
