@@ -73,23 +73,23 @@ def main(argv: list[str]) -> int:
         item.accept()
 
     profile.downloadRequested.connect(on_download)
+    from PyQt6.QtGui import QColor
+
+    page.setBackgroundColor(QColor("#f4f6f8"))
     view.setWindowTitle("Trip Desk")
+    avail = app.primaryScreen().availableGeometry()
+    view.setGeometry(avail)  # 최대화 상태와 같은 크기로 미리 맞춰 두면 창 관리자가 크기를 다시 바꾸지 않는다
+    shown = []
+
+    def show_once(*_):
+        # 화면이 그려진 뒤 딱 한 번만 최대화로 연다: 흰 화면 → 줄었다 늘었다 하는 깜박임을 없앤다
+        if not shown:
+            shown.append(1)
+            view.showMaximized()
+
+    page.loadFinished.connect(show_once)
+    QTimer.singleShot(2500, show_once)  # 로딩이 늦어도 창은 뜨게
     view.load(QUrl(url))
-    from PyQt6.QtCore import Qt
-
-    avail = (app.primaryScreen().availableGeometry())
-    view.setGeometry(avail)  # 창 관리자가 '최대화' 표시만 하고 크기를 안 키우는 경우에도 화면을 채우도록 먼저 크기를 맞춘다
-    view.showMaximized()
-
-    def ensure_full():
-        # 최대화 표시(아이콘)는 켜졌는데 실제 크기가 작게 뜨는 경우: 상태를 풀었다가 다시 최대화한다
-        if view.width() < avail.width() - 40 or view.height() < avail.height() - 100:
-            view.setWindowState(Qt.WindowState.WindowNoState)
-            view.setGeometry(avail)
-            view.setWindowState(Qt.WindowState.WindowMaximized)
-
-    for ms in (300, 900, 2000):
-        QTimer.singleShot(ms, ensure_full)
 
     shot = os.environ.get("TRIPDESK_QT_SHOT")  # 시험용: 화면을 저장하고 끝낸다
     if shot:
