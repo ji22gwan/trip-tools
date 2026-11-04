@@ -10,7 +10,7 @@ import re
 import unicodedata
 import uuid
 
-MAX_ITEMS = 80
+MAX_ITEMS = 150
 LEGAL = {"gmbh", "ag", "kg", "se", "co", "ltd", "llc", "inc", "corp", "corporation", "bv", "sa", "srl", "spa", "oy", "ab",
          "as", "kk", "limited", "company", "mbh", "ug", "sas", "plc", "pte"}
 
@@ -40,7 +40,7 @@ def build_keyword_prompt(trip: dict, keywords: list[str], count: int = 20, site_
     """Claude Chat 에 그대로 붙여 넣는 프롬프트. 답변 JSON 을 Desk 에 붙여 넣으면 읽을 수 있게 형식을 고정한다."""
     if not keywords:
         raise ResearchError("찾고 싶은 키워드를 한 개 이상 적어 주세요.")
-    count = max(5, min(int(count or 20), 40))
+    count = max(5, min(int(count or 20), 100))
     year = trip["days"][0][:4]
     kw = ", ".join(keywords)
     skip = ""
@@ -60,6 +60,7 @@ Task: use web search. Start from the official exhibitor directory / exhibitor se
 
 Rules:
 - If you cannot browse the web in this conversation, say so and stop. Do not answer from memory.
+- "up to {count}" is a maximum, not a target: if fewer genuinely match, return fewer. If the full list would not fit in one reply, return fewer complete entries rather than cutting the JSON off.
 - Never invent companies, hall numbers or booth numbers. Leave "hall" and "booth" empty when you did not see them in a source.
 - "verified": true only when a source you opened shows the company exhibits at this edition; otherwise false.
 - "sourceUrl": the page where you saw the company listed for this edition (empty if none).

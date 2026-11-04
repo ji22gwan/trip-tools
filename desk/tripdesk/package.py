@@ -5,7 +5,7 @@ import re
 import zipfile
 
 from . import SCHEMA_VERSION, research
-from .store import Store, StoreError
+from .store import Store, StoreError, hall_key
 
 
 def _slug(name: str) -> str:
@@ -26,6 +26,10 @@ def check(store: Store, trip_id: str) -> list[str]:
     elif len(store.list_maps(trip_id)) > 1:
         warns.append(f"지도가 여러 장이에요. 패키지에는 대표 지도 '{store.primary_map(trip_id).name}' 1장만 들어가요.")
     cs = picked(store.get_companies(trip_id))
+    pins = store.get_trip(trip_id).get("hallPins", {})
+    missing = sorted({hall_key(c["hall"]) for c in cs if hall_key(c.get("hall")) and hall_key(c["hall"]) not in pins})
+    if store.list_maps(trip_id) and missing:
+        warns.append(f"지도에 위치를 정하지 않은 홀이 있어요: {', '.join(missing)} ('지도에 배치' 탭). 폰 지도에 이 홀의 업체는 표시되지 않아요.")
     if not cs:
         warns.append("패키지에 넣을 업체를 아직 고르지 않았어요. 현장에서 하나씩 추가해야 합니다.")
     elif any(c.get("day") is None for c in cs):
@@ -48,6 +52,7 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "venue": trip.get("venue", ""),
         "purpose": trip.get("purpose", ""),
         "days": trip["days"],
+        "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다
     }
     companies = [
         {

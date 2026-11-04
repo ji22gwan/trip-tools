@@ -133,6 +133,7 @@ export async function importTripPackage(file) {
     purpose: tripIn.purpose || "",
     days: tripIn.days,
     glossary,
+    hallPins: cleanPins(tripIn.hallPins),
     createdAt: existingTrip?.createdAt || Date.now(),
   };
   await db.put("trips", trip);
@@ -177,4 +178,14 @@ export async function importTripPackage(file) {
 
   db.setActiveTripId(trip.id);
   return { trip, added, updated, maps };
+}
+
+function cleanPins(p) {
+  const out = {};
+  if (!p || typeof p !== "object") return out;
+  for (const [k, v] of Object.entries(p)) {
+    const x = Number(v?.x), y = Number(v?.y);
+    if (k && x >= 0 && x <= 1 && y >= 0 && y <= 1) out[k] = { x, y, page: Number(v.page) || 0 };
+  }
+  return out;
 }

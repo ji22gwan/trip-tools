@@ -16,6 +16,28 @@ class StoreError(Exception):
     pass
 
 
+def hall_key(s) -> str:
+    """홀 이름 비교용 키: 'Hall 3A', '3a', '홀 3A' 모두 '3A'. 폰 앱(model.js hallKey)과 같은 규칙이어야 한다."""
+    t = re.sub(r"^(HALLE|HALL|홀)\s*", "", str(s or "").strip().upper())
+    return re.sub(r"\s+", "", t)
+
+
+def clean_hall_pins(pins) -> dict:
+    """{홀: {x, y, page}} — x, y 는 지도 이미지의 0~1 비율. 잘못된 값은 버린다."""
+    out = {}
+    if not isinstance(pins, dict):
+        return out
+    for k, v in pins.items():
+        key = hall_key(k)
+        try:
+            x, y, page = float(v["x"]), float(v["y"]), int(v.get("page", 0))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if key and 0 <= x <= 1 and 0 <= y <= 1 and 0 <= page < 50:
+            out[key] = {"x": round(x, 4), "y": round(y, 4), "page": page}
+    return out
+
+
 def data_dir() -> Path:
     env = os.environ.get("TRIPDESK_HOME")
     return Path(env) if env else Path.home() / "TripDesk"
@@ -111,6 +133,8 @@ class Store:
         for k, v in fields.items():
             if k in allowed and isinstance(v, str):
                 trip[k] = v.strip()
+        if "hallPins" in fields:
+            trip["hallPins"] = clean_hall_pins(fields["hallPins"])
         if "start" in fields and fields["start"]:
             trip["days"] = iso_range(fields["start"], fields.get("end") or fields["start"])
         self._write(self._dir(trip_id) / "trip.json", trip)

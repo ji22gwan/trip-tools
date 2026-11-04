@@ -1,3 +1,4 @@
+import { pinsPanel } from "./pins.js";
 import { h, api, toast, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
 
 const P = { tab: "cands", cat: "전체", q: "", v: null, tid: null, found: null };
@@ -228,6 +229,8 @@ function mapTab() {
     file.value = "";
   } });
   const found = P.found;
+  const pinHost = h("div");
+  if (maps.length) pinsPanel(P, redraw).then((c) => { if (c && pinHost.isConnected) pinHost.append(c); });
   return h("div", { class: "pad" },
     maps.length ? h("div", { class: "maps", style: "padding:0" }, ...maps.map((m) => h("div", { class: "mapr" },
       h("div", { class: "ic" }, m.name.split(".").pop().toUpperCase()),
@@ -250,7 +253,8 @@ function mapTab() {
         h("button", { class: "btn sm", onclick: () => guard(async () => { const r = await api("POST", `/trips/${P.tid}/maps/download`, { url: c.url }); P.v = r.view; redraw(); toast("받았어요."); }) }, "받기")))) : null,
     h("div", { class: "field" }, h("label", {}, "주소로 직접 받기"), h("div", { class: "row" }, h("div", { class: "grow" }, url),
       h("button", { class: "btn", onclick: () => guard(async () => { const r = await api("POST", `/trips/${P.tid}/maps/download`, { url: url.value.trim() }); P.v = r.view; redraw(); toast("받았어요."); }) }, "받기"))),
-    h("div", { class: "row" }, file, h("button", { class: "btn", onclick: () => file.click() }, "내 컴퓨터의 지도 파일 올리기"), h("span", { class: "sub" }, "PDF·PNG·JPG")));
+    h("div", { class: "row" }, file, h("button", { class: "btn", onclick: () => file.click() }, "내 컴퓨터의 지도 파일 올리기"), h("span", { class: "sub" }, "PDF·PNG·JPG")),
+    pinHost);
 }
 
 // ---------------- 용어집 ----------------
@@ -291,7 +295,7 @@ function openCompanyEditor(c) {
 // ---------------- AI 프롬프트(키워드) ----------------
 function openKeywordPrompt() {
   const kw = h("input", { placeholder: "예) 휴머노이드, 용접 로봇, 비전 센서", value: "" });
-  const count = h("select", {}, ...[10, 20, 30, 40].map((n) => h("option", { value: n }, `${n}곳`)));
+  const count = h("select", {}, ...[10, 20, 30, 40, 50, 100].map((n) => h("option", { value: n }, `최대 ${n}곳`)));
   count.value = "20";
   let last = "";
   promptModal({
@@ -300,7 +304,7 @@ function openKeywordPrompt() {
     auto: false,
     extraTop: (ctl) => h("div", { class: "row" },
       h("div", { class: "grow field" }, h("label", {}, "찾고 싶은 키워드 (쉼표로 구분)"), kw),
-      h("div", { class: "field", style: "width:110px" }, h("label", {}, "개수"), count),
+      h("div", { class: "field", style: "width:130px" }, h("label", {}, "업체 수"), count),
       h("button", { class: "btn primary", style: "align-self:flex-end", onclick: () => { last = kw.value; ctl.load(); } }, "프롬프트 만들기")),
     getPrompts: async () => {
       const r = await api("POST", `/trips/${P.tid}/prompt/exhibitors`, { keywords: kw.value, count: Number(count.value) });

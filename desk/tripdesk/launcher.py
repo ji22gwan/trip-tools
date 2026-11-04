@@ -51,7 +51,7 @@ def open_app_window(url: str, profile_dir: Path):
         return None
     profile_dir.mkdir(parents=True, exist_ok=True)  # 전용 프로필: 평소 브라우저와 섞이지 않고, 창이 닫힐 때까지 프로세스가 살아 있다
     args = b + [f"--app={url}", f"--user-data-dir={profile_dir}", "--window-size=1320,880", "--class=tripdesk", "--name=tripdesk",
-                "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"]
+                "--no-first-run", "--no-default-browser-check", "--disable-features=Translate,TranslateUI,MediaRouter", "--disable-translate", "--disable-infobars"]
     return subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 

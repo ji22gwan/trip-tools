@@ -181,3 +181,28 @@ export async function loadCompanyRecords(companyId) {
     photos: photos.sort(byTime),
   };
 }
+
+/** 홀 이름 비교 키: 'Hall 3A', '3a', '홀 3A' → '3A'. Desk 의 hall_key 와 같은 규칙. */
+export function hallKey(s) {
+  return String(s || "").trim().toUpperCase().replace(/^(HALLE|HALL|홀)\s*/, "").replace(/\s+/g, "");
+}
+
+/** 오늘 방문할 업체를 홀별로 묶어 지도 위 위치와 함께 돌려준다. 위치를 모르는 홀은 missing 으로. */
+export function hallMarkers(companies, day, hallPins = {}) {
+  const groups = new Map();
+  for (const c of companies) {
+    if (c.day !== day && !isVisited(c, day)) continue;
+    const k = hallKey(c.hall);
+    if (!k) continue;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(c);
+  }
+  const markers = [];
+  const missing = [];
+  for (const [key, list] of groups) {
+    const pin = hallPins[key];
+    if (pin) markers.push({ key, page: pin.page || 0, x: pin.x, y: pin.y, companies: list, done: list.filter((c) => isVisited(c, day)).length });
+    else missing.push(key);
+  }
+  return { markers, missing };
+}

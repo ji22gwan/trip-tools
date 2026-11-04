@@ -113,3 +113,19 @@ def test_package_matches_phone_importer_contract(store):
     assert json.loads(z.read("trip_SPS_2026/glossary.json"))["terms"] == ["EtherCAT", "TCP"]
     comp = json.loads(z.read("trip_SPS_2026/companies.json"))[0]
     assert comp["id"] and comp["name"] == "A" and comp["day"] == 1
+
+
+def test_hall_pins_clean_and_in_package(store):
+    from tripdesk.store import hall_key, clean_hall_pins
+
+    assert hall_key("Hall 3a") == hall_key("홀 3A") == hall_key(" 3 A ") == "3A"
+    t = new_trip(store)
+    store.update_trip(t["id"], hallPins={"Hall 3A": {"x": 0.31, "y": 0.42}, "4A": {"x": 1.5, "y": 0.2}, "5": "bad", "6": {"x": 0.1, "y": 0.9, "page": 1}})
+    pins = store.get_trip(t["id"])["hallPins"]
+    assert set(pins) == {"3A", "6"} and pins["3A"] == {"x": 0.31, "y": 0.42, "page": 0} and pins["6"]["page"] == 1  # 범위 밖·형식 오류는 버린다
+    store.set_companies(t["id"], [{"id": "c1", "name": "A", "hall": "3a", "booth": "1", "day": 1}, {"id": "c2", "name": "B", "hall": "Hall 7", "booth": "", "day": 2}])
+    store.add_map(t["id"], "m.pdf", PDF)
+    assert any("7" in w and "배치" in w for w in package.check(store, t["id"]))  # 위치 없는 홀을 알려 준다
+    _, data = package.build_package(store, t["id"])
+    z = zipfile.ZipFile(io.BytesIO(data))
+    assert json.loads(z.read("trip_SPS_2026/trip.json"))["hallPins"]["3A"]["x"] == 0.31

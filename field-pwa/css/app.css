@@ -158,3 +158,11 @@ button { cursor: pointer; }
 
 #toast { position: fixed; left: 50%; bottom: calc(var(--safe-bottom) + 90px); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; z-index: 100; max-width: 88vw; text-align: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
 #toast.show { opacity: 1; }
+
+.hall-layer{position:absolute;inset:0;pointer-events:none}
+.hall-pin{position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;gap:5px;background:#e8590c;color:#fff;border:2px solid #fff;border-radius:999px;padding:4px 9px;min-height:32px;font-size:13px;font-weight:800;box-shadow:0 2px 6px #0006;white-space:nowrap}
+.hall-pin i{font-style:normal;background:#fff;color:#111;border-radius:999px;min-width:20px;text-align:center;padding:0 5px}
+.hall-pin.done{background:#2f9e44}
+.hall-sheet{position:absolute;left:10px;right:10px;bottom:10px;max-height:45%;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 4px 18px #0004;padding:10px 14px;z-index:5}
+.hs-h{display:flex;gap:10px;align-items:center;font-size:15px}.hs-h span{color:var(--sub);font-size:13px}.hs-h button{margin-left:auto;width:36px;height:36px;border:0;background:none;font-size:22px}
+.hs-r{padding:9px 0;border-top:1px solid var(--line);font-weight:700;display:flex;justify-content:space-between}.hs-r small{color:var(--sub);font-weight:600}.hs-r.done{opacity:.55;text-decoration:line-through}

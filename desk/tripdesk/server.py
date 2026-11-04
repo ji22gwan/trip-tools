@@ -1,6 +1,8 @@
 """로컬 웹 서버(표준 라이브러리만 사용). 127.0.0.1 에만 열린다."""
 import json
 import mimetypes
+
+mimetypes.add_type("text/javascript", ".mjs")  # 일부 환경에서 .mjs 가 text/plain 으로 나와 모듈 로딩이 막힌다
 import os
 import re
 import tempfile
@@ -88,6 +90,11 @@ class Api:
 
     @route("GET", r"/api/trips/(?P<tid>[^/]+)")
     def get_trip(self, m, q, body):
+        return self.trip_view(m["tid"])
+
+    @route("PUT", r"/api/trips/(?P<tid>[^/]+)/hall-pins")
+    def put_hall_pins(self, m, q, body):
+        self.store.update_trip(m["tid"], hallPins=jbody(body))
         return self.trip_view(m["tid"])
 
     @route("PATCH", r"/api/trips/(?P<tid>[^/]+)")

@@ -95,6 +95,7 @@ export class PanZoom {
   _bind() {
     const vp = this.vp;
     vp.addEventListener("pointerdown", (e) => {
+      if (e.target.closest?.(".hall-pin")) return; // 홀 표시는 눌러서 열어야 하므로 드래그로 가로채지 않는다
       vp.setPointerCapture?.(e.pointerId);
       this.pointers.set(e.pointerId, this._local(e));
       if (this.pointers.size === 2) this._startPinch();

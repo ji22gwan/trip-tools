@@ -37,6 +37,7 @@ s.add_map(t["id"], "plan.png", open(sys.argv[2], "rb").read())
 rows, _ = companies_io.parse_companies("l.csv", "업체명,카테고리,홀,부스,일차,질문\\nA사,로봇,3A,1,1,가동 시간; 가격\\nB사,센서,3,2,2,\\n".encode(), t["days"])
 s.set_companies(t["id"], companies_io.merge_companies([], rows)[0])
 s.set_glossary(t["id"], ["EtherCAT"])
+s.update_trip(t["id"], hallPins={"Hall 3A": {"x": 0.25, "y": 0.5, "page": 0}})
 name, data = package.build_package(s, t["id"])
 sys.stdout.buffer.write(data)
 `;
@@ -54,6 +55,13 @@ test("Trip Desk 패키지를 폰 앱이 불러온다", async () => {
   assert.equal(r.maps, 1);
   assert.deepEqual(r.trip.glossary, ["EtherCAT"]);
   const cs = await model.listCompanies(r.trip.id);
+  // 홀 위치가 폰까지 오고, 1일차 업체가 홀별로 묶여 지도에 표시된다
+  assert.deepEqual(r.trip.hallPins["3A"], { x: 0.25, y: 0.5, page: 0 });
+  const hm = model.hallMarkers(cs, 1, r.trip.hallPins);
+  assert.equal(hm.markers.length, 1);
+  assert.equal(hm.markers[0].key, "3A");
+  assert.equal(hm.markers[0].companies.length, 1);
+  assert.deepEqual(model.hallMarkers(cs, 2, r.trip.hallPins).missing, ["3"]); // 2일차 B사 홀 3 은 위치 미지정
   const a = cs.find((c) => c.name === "A사");
   assert.equal(a.day, 1);
   assert.deepEqual(a.questions.map((q) => q.text), ["가동 시간", "가격"]);

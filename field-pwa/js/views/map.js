@@ -1,7 +1,7 @@
 // 맵 화면: 공식 평면도(PDF/PNG)를 그대로 띄우고 이동·확대·축소만 한다.
 import * as db from "../db.js";
 import { esc, icons, pickFile, toast } from "../ui.js";
-import { isVisited } from "../model.js";
+import { isVisited, hallMarkers } from "../model.js";
 import { importMapFile } from "../importer.js";
 import { PanZoom } from "../panzoom.js";
 import { headerHtml, bindHeader, openAddCompany } from "./shared.js";
@@ -67,6 +67,31 @@ export async function renderMap(root, ctx) {
     initial: viewStates.get(map.id),
     onChange: (s) => viewStates.set(map.id, s),
   });
+  // 홀 표시: 오늘 가는 업체를 홀별로 묶어 지도 위에 얹는다 (Desk 에서 정한 위치 사용)
+  const pageIdx = Math.max(0, maps.findIndex((m) => m.id === map.id));
+  const { markers, missing } = hallMarkers(companies, day, trip.hallPins || {});
+  const layer = document.createElement("div");
+  layer.className = "hall-layer";
+  root.querySelector("#pz").append(layer);
+  const mine = markers.filter((m) => m.page === pageIdx);
+  const pins = mine.map((m) => {
+    const b = document.createElement("button");
+    b.className = "hall-pin" + (m.done === m.companies.length ? " done" : "");
+    b.innerHTML = `<b>${esc(m.key)}</b><i>${m.companies.length - m.done}</i>`;
+    b.setAttribute("aria-label", `홀 ${m.key} 업체 ${m.companies.length}곳`);
+    b.onclick = (e) => { e.stopPropagation(); showHall(root, m, day); };
+    layer.append(b);
+    return [b, m];
+  });
+  const place = () => {
+    const w = img.naturalWidth || map.width, hh = img.naturalHeight || map.height;
+    for (const [b, m] of pins) b.style.transform = `translate(${pz.x + m.x * w * pz.scale}px, ${pz.y + m.y * hh * pz.scale}px) translate(-50%,-100%)`;
+  };
+  pz.onChange = (s) => { viewStates.set(map.id, s); place(); };
+  if (img.complete) place(); else img.addEventListener("load", place);
+  place();
+  const hint = root.querySelector(".map-hint");
+  if (hint && missing.length) hint.textContent = `위치 미지정 홀: ${missing.join(", ")} · 드래그로 이동`;
   root.querySelector("#zIn").onclick = () => pz.zoomBy(1.6);
   root.querySelector("#zOut").onclick = () => pz.zoomBy(1 / 1.6);
   root.querySelector("#zFit").onclick = () => pz.reset();
@@ -80,4 +105,14 @@ export async function renderMap(root, ctx) {
     pz.destroy();
     URL.revokeObjectURL(url);
   };
+}
+
+function showHall(root, m, day) {
+  root.querySelector(".hall-sheet")?.remove();
+  const el = document.createElement("div");
+  el.className = "hall-sheet";
+  el.innerHTML = `<div class="hs-h"><b>홀 ${esc(m.key)}</b><span>${m.done}/${m.companies.length} 완료</span><button aria-label="닫기">×</button></div>` +
+    m.companies.map((c) => `<div class="hs-r${isVisited(c, day) ? " done" : ""}">${esc(c.name)}<small>${esc(c.booth || "")}</small></div>`).join("");
+  el.querySelector("button").onclick = () => el.remove();
+  root.querySelector(".map-wrap").append(el);
 }

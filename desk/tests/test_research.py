@@ -26,7 +26,8 @@ def test_keyword_prompt_has_keywords_rules_and_format():
     assert "Old Co" in p and "```json" in p and '"verified"' in p
     with pytest.raises(research.ResearchError):
         research.build_keyword_prompt(TRIP, [])
-    assert "up to 40 companies" in research.build_keyword_prompt(TRIP, ["x"], 999)
+    assert "up to 100 companies" in research.build_keyword_prompt(TRIP, ["x"], 999)
+    assert "up to 10 companies" in research.build_keyword_prompt(TRIP, ["x"], 10)
 
 
 def test_split_keywords():
