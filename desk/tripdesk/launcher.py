@@ -44,13 +44,39 @@ def already_running(port: int) -> bool:
         return False
 
 
+def qt_available() -> bool:
+    """전용 창(PyQt6 WebEngine)이 설치돼 있는지. TRIPDESK_WINDOW=chrome 으로 끌 수 있다."""
+    if os.environ.get("TRIPDESK_WINDOW", "").lower() == "chrome":
+        return False
+    try:
+        import importlib.util
+
+        return importlib.util.find_spec("PyQt6.QtWebEngineWidgets") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def open_qt_window(url: str):
+    """전용 창을 별도 프로세스로 띄운다. 곧바로 비정상 종료하면(필수 라이브러리 없음 등) None 을 돌려줘 크롬 방식으로 넘어가게 한다."""
+    proc = subprocess.Popen([sys.executable, "-m", "tripdesk.qtwindow", url], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(12):
+        time.sleep(0.25)
+        if proc.poll() is not None:
+            return None if proc.returncode != 0 else proc
+    return proc
+
+
 def open_app_window(url: str, profile_dir: Path):
-    """앱 창을 연다. 성공하면 Popen, 크롬 계열이 없으면 None."""
+    """앱 창을 연다. 전용 창이 있으면 그것을, 없으면 크롬 계열 앱 창을. 둘 다 안 되면 None."""
+    if qt_available():
+        proc = open_qt_window(url)
+        if proc is not None:
+            return proc
     b = find_browser()
     if not b:
         return None
     profile_dir.mkdir(parents=True, exist_ok=True)  # 전용 프로필: 평소 브라우저와 섞이지 않고, 창이 닫힐 때까지 프로세스가 살아 있다
-    args = b + [f"--app={url}", f"--user-data-dir={profile_dir}", "--window-size=1320,880", "--class=tripdesk", "--name=tripdesk",
+    args = b + [f"--app={url}", f"--user-data-dir={profile_dir}", "--window-size=1320,880", "--start-maximized", "--class=tripdesk", "--name=tripdesk",
                 "--no-first-run", "--no-default-browser-check", "--disable-features=Translate,TranslateUI,MediaRouter", "--disable-translate", "--disable-infobars"]
     return subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

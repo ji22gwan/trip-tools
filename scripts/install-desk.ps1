@@ -23,6 +23,7 @@ if (Test-Path (Join-Path $Dest 'tripdesk')) { Remove-Item (Join-Path $Dest 'trip
 Copy-Item (Join-Path $Root 'desk\tripdesk') (Join-Path $Dest 'tripdesk') -Recurse
 Copy-Item (Join-Path $Root 'desk\requirements.txt') $Dest -Force
 Copy-Item (Join-Path $Root 'desk\requirements-whisper.txt') $Dest -Force
+Copy-Item (Join-Path $Root 'desk\requirements-qt.txt') $Dest -Force
 if (Test-Path (Join-Path $Dest 'assets')) { Remove-Item (Join-Path $Dest 'assets') -Recurse -Force }
 Copy-Item (Join-Path $Root 'desk\assets') (Join-Path $Dest 'assets') -Recurse
 Get-ChildItem $Dest -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
@@ -44,6 +45,11 @@ if ($env:WHISPER -eq '1') {
   Say '   음성 인식 엔진(faster-whisper) 설치 중... 용량이 커서 몇 분 걸릴 수 있어요'
   & $venvPy -m pip install --quiet --disable-pip-version-check -r (Join-Path $Dest 'requirements-whisper.txt')
   if ($LASTEXITCODE -ne 0) { Die '음성 인식 엔진 설치에 실패했어요(인터넷 연결 확인). WHISPER 없이 다시 실행하면 나머지 기능은 쓸 수 있어요.' }
+}
+if ($env:QT -eq '1') {
+  Say '   전용 창(PyQt6 WebEngine) 설치 중... 용량이 커서 몇 분 걸릴 수 있어요'
+  & $venvPy -m pip install --quiet --disable-pip-version-check -r (Join-Path $Dest 'requirements-qt.txt')
+  if ($LASTEXITCODE -ne 0) { Die '전용 창 설치에 실패했어요(인터넷 연결 확인). QT 없이 다시 실행하면 크롬/엣지 앱 창으로 쓸 수 있어요.' }
 }
 
 Say '3/3 바로가기 만들기'

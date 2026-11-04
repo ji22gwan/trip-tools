@@ -20,7 +20,7 @@ say "1/3 파일 복사 → $DEST"
 mkdir -p "$DEST"
 rm -rf "$DEST/tripdesk"
 cp -R "$ROOT/desk/tripdesk" "$DEST/tripdesk"
-cp "$ROOT/desk/requirements.txt" "$ROOT/desk/requirements-whisper.txt" "$DEST/"
+cp "$ROOT/desk/requirements.txt" "$ROOT/desk/requirements-whisper.txt" "$ROOT/desk/requirements-qt.txt" "$DEST/"
 rm -rf "$DEST/assets"; cp -R "$ROOT/desk/assets" "$DEST/assets"
 find "$DEST" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
@@ -39,6 +39,14 @@ fi
 if [ "${WHISPER:-0}" = "1" ]; then
   say "   음성 인식 엔진(faster-whisper) 설치 중… 용량이 커서 몇 분 걸릴 수 있어요"
   "$DEST/venv/bin/python" -m pip install --quiet --disable-pip-version-check -r "$DEST/requirements-whisper.txt" || die "음성 인식 엔진 설치에 실패했어요(인터넷 연결 확인). WHISPER 없이 다시 실행하면 나머지 기능은 쓸 수 있어요."
+fi
+
+if [ "${QT:-0}" = "1" ]; then
+  say "   전용 창(PyQt6 WebEngine) 설치 중… 용량이 커서(약 500MB) 몇 분 걸릴 수 있어요"
+  "$DEST/venv/bin/python" -m pip install --quiet --disable-pip-version-check -r "$DEST/requirements-qt.txt" || die "전용 창 설치에 실패했어요(인터넷 연결 확인). QT 없이 다시 실행하면 크롬 앱 창으로 쓸 수 있어요."
+  if [ "$(uname -s)" = "Linux" ] && ! ldconfig -p 2>/dev/null | grep -q libxcb-cursor; then
+    QT_NOTE="※ Ubuntu 에서는 전용 창에 라이브러리가 하나 더 필요해요:  sudo apt install libxcb-cursor0   (설치 전에는 자동으로 크롬 앱 창으로 떠요)"
+  fi
 fi
 
 say "3/3 실행 아이콘 만들기"
@@ -100,6 +108,7 @@ cat <<DONE
 설치가 끝났어요.
   실행: 아이콘을 누르면 앱 창으로 떠요(터미널 없음). 문제가 생기면 ~/TripDesk/tripdesk.log 를 보세요.
   $ICON_NOTE
+  ${QT_NOTE:-}
   데이터 폴더: ~/TripDesk (삭제해도 이 폴더는 남겨 둬요)
 DONE
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) echo "  참고: $BIN_DIR 가 PATH 에 없어요. 'tripdesk' 명령 대신 위 전체 경로로 실행하세요." ;; esac

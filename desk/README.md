@@ -40,6 +40,11 @@ python3 -m tripdesk                         # 또는 scripts/install-desk.* 로 
 
 시각은 폰이 기록한 시간대(`tzOffsetMin`)로 보여요. 이 값이 없는 예전 파일은 UTC 로 표시해요.
 
+## 전용 창 (크롬 없이, 항상 최대화)
+크롬 앱 창은 크롬 쪽 알림(예: "Can't update Chrome")이 뜰 수 있어요. 이를 피하려면 전용 창으로 설치하세요:
+`QT=1 ./scripts/install-desk.sh` (Windows: `install-desk.bat qt`). PyQt6 WebEngine(약 500MB)이 들어가고, Ubuntu 는 `sudo apt install libxcb-cursor0` 가 추가로 필요해요. 전용 창은 항상 최대화로 열리고, 링크는 기본 브라우저로 열리며, 파일 저장은 저장 위치를 물어봐요. 설치돼 있지 않거나 시작에 실패하면 자동으로 크롬 앱 창으로 떠요. 강제로 크롬 방식을 쓰려면 환경변수 `TRIPDESK_WINDOW=chrome`.
+(이 창은 Linux 가상 화면에서 뜨고 닫히는 것까지만 확인했어요. Windows·macOS 와 파일 저장·복사 버튼은 실제 사용에서 확인이 필요해요.)
+
 ## 항공·숙소 (사전조사 → '항공·숙소' 탭)
 - **검색 바로가기**: 출발지·목적지·날짜·호텔 등급(성급, 리뷰 평점 아님) 범위를 채운 Google 항공편·Skyscanner(공항 3글자 코드일 때)·Agoda·Hotels.com·Booking·Google 호텔 검색 페이지를 열어요. 호텔은 행사장(장소) 근처로 찾아요. 사이트가 주소 형식을 바꾸면 일부 값(특히 등급 필터)이 안 채워질 수 있어요 — 실제 사이트 동작은 아직 확인하지 못했어요.
 - **AI 후보**: 항공편/호텔 후보를 Claude Chat 프롬프트+붙여넣기로 받아요. 가격·잔여 객실은 AI가 확정할 수 없으니 사이트에서 확인하세요. 후보에서 '예약 기록으로'를 누르면 입력칸이 미리 채워져요.
