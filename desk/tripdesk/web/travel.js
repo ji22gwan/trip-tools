@@ -14,7 +14,19 @@ export function travelTab(P) {
   const load = async (v) => { V = v || (await api("GET", base)); draw(); };
   const put = (patch) => guard(async () => { await load(await api("PUT", base, patch)); return true; });
 
+  // 다시 그려도 보던 위치를 유지한다 (탭 전환·저장 때 화면이 맨 위로 튀지 않게)
+  function scroller() {
+    for (let el = host.parentElement; el; el = el.parentElement) if (el.scrollHeight > el.clientHeight && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) return el;
+    return document.scrollingElement;
+  }
+
   function draw() {
+    const sc = scroller(), top = sc ? sc.scrollTop : 0;
+    paint();
+    if (sc) { sc.scrollTop = top; requestAnimationFrame(() => { sc.scrollTop = top; }); }
+  }
+
+  function paint() {
     const { travel: T, links, summary } = V;
     const days = P.v.trip.days;
     const f = {
@@ -57,7 +69,7 @@ export function travelTab(P) {
     const cand = c.flights.length || c.hotels.length ? h("div", { class: "card" }, h("h3", {}, "AI 후보 (가격·가용 여부는 사이트에서 확인)"),
       h("div", { class: "row", style: "flex-wrap:wrap" },
         ...[["flights", "항공편"], ["hotels", "호텔"]].map(([k, label]) => h("button", { class: "chip" + (candTab === k ? " on" : ""), onclick: () => { candTab = k; draw(); } }, `${label} ${c[k].length}`)),
-        h("button", { class: "btn sm danger", style: "margin-left:auto", disabled: !c[candTab].length, onclick: () => clear(candTab) }, candTab === "flights" ? "항공편 후보 비우기" : "호텔 후보 비우기")),
+        h("button", { class: "btn sm danger", style: "margin-left:auto;font-size:16px", disabled: !c[candTab].length, title: candTab === "flights" ? "항공편 후보 비우기" : "호텔 후보 비우기", "aria-label": candTab === "flights" ? "항공편 후보 비우기" : "호텔 후보 비우기", onclick: () => clear(candTab) }, "🗑")),
       ...(c[candTab].length ? (candTab === "flights" ? flightRows : hotelRows) : [h("div", { class: "sub" }, "이 목록은 비어 있어요. 위의 프롬프트 버튼으로 후보를 받아 보세요.")])) : null;
 
     const rec = h("div", { class: "card" }, h("h3", {}, "예약 기록"),
