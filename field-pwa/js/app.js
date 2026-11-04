@@ -119,7 +119,17 @@ async function prefillServer() {
   }
 }
 
+// 설치 끝에 나오는 '설정 링크'(주소 뒤 ?t=토큰)를 폰에서 열면 토큰이 저장된다. 긴 토큰을 직접 입력할 필요가 없다.
+function takeTokenFromLink() {
+  const m = /^\?(?:.*&)?t=([A-Za-z0-9_-]{8,128})(?:&.*)?$/.exec(location.search);
+  if (!m) return false;
+  db.saveSettings({ token: m[1] });
+  // 주소의 ?t=… 는 일부러 지우지 않는다: iPhone 은 '홈 화면에 추가'한 앱의 저장공간이 사파리와 따로라, 이 주소로 추가해야 토큰이 따라간다.
+  return true;
+}
+
 async function boot() {
+  const gotToken = takeTokenFromLink();
   await prefillServer();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW 등록 실패", e));
@@ -132,6 +142,7 @@ async function boot() {
   try {
     const n = await recoverRecordings();
     await render();
+    if (gotToken) toast("서버 연결 정보를 저장했어요. 설정에서 '연결 시험'을 눌러 확인해 보세요.", 5000);
     if (n) toast(`중단됐던 녹음 ${n}건을 복구했어요.`, 4500);
   } catch (e) {
     console.error(e);

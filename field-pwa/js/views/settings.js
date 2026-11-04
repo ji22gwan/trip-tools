@@ -27,7 +27,7 @@ export async function renderSettings(root, ctx) {
         <div style="font-weight:800;font-size:17px">번역 서버</div>
         <div class="small muted">팀에서 정한 Cloudflare Worker 주소와, 나에게 발급된 토큰을 입력하세요. Gemini 키는 앱에 저장되지 않아요.</div>
         <div class="field"><label for="sUrl">서버 주소</label><input id="sUrl" class="input" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://trip-translate.example.workers.dev" value="${esc(s.workerUrl)}"></div>
-        <div class="field"><label for="sToken">토큰</label><input id="sToken" class="input" type="password" autocapitalize="off" autocomplete="off" value="${esc(s.token)}"></div>
+        <div class="field"><label for="sToken">토큰 (또는 설치 때 받은 설정 링크 전체)</label><input id="sToken" class="input" type="password" autocapitalize="off" autocomplete="off" value="${esc(s.token)}"></div>
         <div class="row"><button class="btn btn-block" id="sTest">연결 시험</button><button class="btn btn-dark btn-block" id="sSave">저장</button></div>
         <div class="small" id="sResult" aria-live="polite"></div>
       </div>
@@ -59,7 +59,7 @@ export async function renderSettings(root, ctx) {
   const $ = (sel) => root.querySelector(sel);
   $("#backBtn").onclick = () => (location.hash = ctx.trip ? "#/map" : "#/setup");
 
-  const saveFromForm = () => db.saveSettings({ workerUrl: $("#sUrl").value.trim(), token: $("#sToken").value.trim() });
+  const saveFromForm = () => db.saveSettings({ workerUrl: $("#sUrl").value.trim(), token: $("#sToken").value.trim().replace(/^.*[?#&]t=/, "") });  // 설정 링크 전체를 붙여 넣어도 토큰만 저장한다
   $("#sSave").onclick = () => {
     saveFromForm();
     toast("저장했어요.");
