@@ -60,7 +60,21 @@ def main(argv: list[str]) -> int:
     profile.downloadRequested.connect(on_download)
     view.setWindowTitle("Trip Desk")
     view.load(QUrl(url))
+    from PyQt6.QtCore import Qt
+
+    avail = (app.primaryScreen().availableGeometry())
+    view.setGeometry(avail)  # 창 관리자가 '최대화' 표시만 하고 크기를 안 키우는 경우에도 화면을 채우도록 먼저 크기를 맞춘다
     view.showMaximized()
+
+    def ensure_full():
+        # 최대화 표시(아이콘)는 켜졌는데 실제 크기가 작게 뜨는 경우: 상태를 풀었다가 다시 최대화한다
+        if view.width() < avail.width() - 40 or view.height() < avail.height() - 100:
+            view.setWindowState(Qt.WindowState.WindowNoState)
+            view.setGeometry(avail)
+            view.setWindowState(Qt.WindowState.WindowMaximized)
+
+    for ms in (300, 900, 2000):
+        QTimer.singleShot(ms, ensure_full)
 
     shot = os.environ.get("TRIPDESK_QT_SHOT")  # 시험용: 화면을 저장하고 끝낸다
     if shot:
