@@ -23,6 +23,8 @@ if (Test-Path (Join-Path $Dest 'tripdesk')) { Remove-Item (Join-Path $Dest 'trip
 Copy-Item (Join-Path $Root 'desk\tripdesk') (Join-Path $Dest 'tripdesk') -Recurse
 Copy-Item (Join-Path $Root 'desk\requirements.txt') $Dest -Force
 Copy-Item (Join-Path $Root 'desk\requirements-whisper.txt') $Dest -Force
+if (Test-Path (Join-Path $Dest 'assets')) { Remove-Item (Join-Path $Dest 'assets') -Recurse -Force }
+Copy-Item (Join-Path $Root 'desk\assets') (Join-Path $Dest 'assets') -Recurse
 Get-ChildItem $Dest -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 Say '2/3 실행 환경 만들기 (venv + openpyxl)'
@@ -45,15 +47,17 @@ if ($env:WHISPER -eq '1') {
 }
 
 Say '3/3 바로가기 만들기'
-$cmd = Join-Path $HomeDir 'tripdesk.cmd'
-"@echo off`r`ncd /d `"$Dest`"`r`n`"$venvPy`" -m tripdesk %*`r`n" | Set-Content -Path $cmd -Encoding ASCII
+# 검은 창 없이 뜨도록 pythonw 로 실행하고, 아이콘을 붙인다
+$pyw = Join-Path (Split-Path $venvPy) 'pythonw.exe'
+if (-not (Test-Path $pyw)) { $pyw = $venvPy }
 $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Trip Desk.lnk'
 $ws = New-Object -ComObject WScript.Shell
-$sc = $ws.CreateShortcut($lnk); $sc.TargetPath = $cmd; $sc.WorkingDirectory = $Dest; $sc.Description = 'Trip Desk'; $sc.Save()
+$sc = $ws.CreateShortcut($lnk); $sc.TargetPath = $pyw; $sc.Arguments = '-m tripdesk --app'; $sc.WorkingDirectory = $Dest
+$sc.IconLocation = (Join-Path $Dest 'assets\icon.ico'); $sc.Description = 'Trip Desk'; $sc.Save()
 
 Write-Host @"
 
 설치가 끝났어요.
-  실행: 바탕화면의 'Trip Desk' 바로가기 (검은 창이 열리고 브라우저가 떠요. 끝낼 땐 검은 창을 닫으세요)
+  실행: 바탕화면의 'Trip Desk' 아이콘 (앱 창으로 떠요. 창을 닫으면 프로그램도 꺼져요. 문제가 생기면 $env:USERPROFILE\TripDesk\tripdesk.log 를 보세요)
   데이터 폴더: $env:USERPROFILE\TripDesk (삭제해도 이 폴더는 남겨 둬요)
 "@ -ForegroundColor Green

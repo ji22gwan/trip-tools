@@ -21,6 +21,7 @@ mkdir -p "$DEST"
 rm -rf "$DEST/tripdesk"
 cp -R "$ROOT/desk/tripdesk" "$DEST/tripdesk"
 cp "$ROOT/desk/requirements.txt" "$ROOT/desk/requirements-whisper.txt" "$DEST/"
+rm -rf "$DEST/assets"; cp -R "$ROOT/desk/assets" "$DEST/assets"
 find "$DEST" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
 say "2/3 실행 환경 만들기 (venv + openpyxl + python-docx)"
@@ -50,30 +51,54 @@ chmod +x "$LAUNCHER"
 
 case "$(uname -s)" in
   Darwin)
-    CMD="$HOME/Desktop/Trip Desk.command"
-    printf '#!/usr/bin/env bash\n"%s"\n' "$LAUNCHER" > "$CMD"; chmod +x "$CMD"
-    ICON_NOTE="바탕화면의 'Trip Desk.command' 를 더블클릭하세요(처음엔 우클릭 → 열기)."
+    # 터미널 없이 뜨는 앱: ~/Applications/Trip Desk.app (아이콘 포함). 직접 실행해 보지 못한 부분이라 안 되면 알려 주세요.
+    APP="$HOME/Applications/Trip Desk.app"
+    rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+    cp "$DEST/assets/icon.icns" "$APP/Contents/Resources/icon.icns"
+    printf '#!/usr/bin/env bash\nexec "%s" --app\n' "$LAUNCHER" > "$APP/Contents/MacOS/TripDesk"; chmod +x "$APP/Contents/MacOS/TripDesk"
+    cat > "$APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>Trip Desk</string>
+<key>CFBundleExecutable</key><string>TripDesk</string>
+<key>CFBundleIdentifier</key><string>local.tripdesk</string>
+<key>CFBundleIconFile</key><string>icon</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+</dict></plist>
+PLIST
+    ICON_NOTE="'응용 프로그램' 옆 ~/Applications 의 'Trip Desk' 를 실행하세요(처음엔 우클릭 → 열기). Dock 에 끌어다 두면 편해요."
     ;;
   *)
-    APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+    APPS="$DATA_HOME/applications"
     mkdir -p "$APPS"
+    for sz in 48 128 256; do
+      mkdir -p "$DATA_HOME/icons/hicolor/${sz}x${sz}/apps"
+      cp "$DEST/assets/icon-$sz.png" "$DATA_HOME/icons/hicolor/${sz}x${sz}/apps/tripdesk.png"
+    done
     cat > "$APPS/tripdesk.desktop" <<ENTRY
 [Desktop Entry]
 Type=Application
 Name=Trip Desk
-Comment=출장 패키지 만들기
-Exec=$LAUNCHER
-Terminal=true
+GenericName=출장 데이터 정리
+Comment=출장 준비부터 보고서까지
+Exec=$LAUNCHER --app
+Icon=tripdesk
+Terminal=false
+StartupWMClass=tripdesk
 Categories=Office;
 ENTRY
-    ICON_NOTE="앱 목록에서 'Trip Desk' 를 찾거나 터미널에서 tripdesk 를 실행하세요."
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS" >/dev/null 2>&1 || true
+    command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
+    ICON_NOTE="앱 목록(Super 키 → 'Trip Desk')에서 실행하세요. 창을 닫으면 프로그램도 같이 꺼져요. 즐겨찾기(Dock)에 고정해 두면 편해요."
     ;;
 esac
 
 cat <<DONE
 
 설치가 끝났어요.
-  실행: $LAUNCHER   (또는 아이콘)
+  실행: 아이콘을 누르면 앱 창으로 떠요(터미널 없음). 문제가 생기면 ~/TripDesk/tripdesk.log 를 보세요.
   $ICON_NOTE
   데이터 폴더: ~/TripDesk (삭제해도 이 폴더는 남겨 둬요)
 DONE

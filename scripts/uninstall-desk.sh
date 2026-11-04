@@ -11,7 +11,9 @@ if [ "${YES:-0}" != "1" ]; then
   [ "$A" = "y" ] || [ "$A" = "Y" ] || { echo "취소했어요."; exit 0; }
 fi
 rm -rf "$HOME_DIR/desk"
-rm -f "$BIN_DIR/tripdesk" "$HOME/Desktop/Trip Desk.command" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/tripdesk.desktop"
+DH="${XDG_DATA_HOME:-$HOME/.local/share}"
+rm -f "$BIN_DIR/tripdesk" "$HOME/Desktop/Trip Desk.command" "$DH/applications/tripdesk.desktop" "$DH"/icons/hicolor/*/apps/tripdesk.png
+rm -rf "$HOME/Applications/Trip Desk.app"
 rmdir "$HOME_DIR" 2>/dev/null || true   # 다른 설치 기록(install.env)이 남아 있으면 그대로 둔다
 echo "프로그램을 삭제했어요."
 

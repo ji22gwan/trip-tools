@@ -39,6 +39,7 @@ function drawSide() {
     item("일간 보고서", trip ? `#/daily/${trip.id}/${lastDay}` : "#/trips", "daily", "", true),
     item("최종 보고서", trip ? `#/final/${trip.id}` : "#/trips", "final", "", true),
     h("div", { class: "grow" }),
+    h("button", { class: "nav", style: "height:38px;font-size:13px", onclick: quitApp }, "프로그램 종료"),
     trip ? h("div", { class: "cur" }, h("i", {}, "현재 출장"), h("b", {}, trip.name), h("i", {}, trip.venue || fmtDate(trip.days[0]))) : null);
 }
 
@@ -104,6 +105,19 @@ function newTrip() {
     f.name.focus();
   });
 }
+
+function quitApp() {
+  confirmBox("Trip Desk 종료", "Trip Desk 를 끝낼까요? 저장된 데이터는 그대로 남아요.", "종료", async () => {
+    try { await api("POST", "/quit", {}); } catch {}
+    document.body.replaceChildren(h("div", { style: "padding:60px;text-align:center;font-size:18px" }, "Trip Desk 를 종료했어요. 이 창은 닫아도 돼요."));
+    setTimeout(() => window.close(), 400);
+  });
+}
+
+// 앱 창 자동 종료를 위한 신호. 창을 닫으면 신호가 끊겨 서버가 스스로 끝나요.
+const beat = () => fetch("/api/ping").catch(() => {});
+beat();
+setInterval(beat, 5000);
 
 window.addEventListener("hashchange", route);
 route();

@@ -5,6 +5,7 @@ import os
 import re
 import tempfile
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -39,6 +40,8 @@ class Api:
         self.store = store
         self.jobs: dict[str, dict] = {}
         self._lock = threading.Lock()
+        self.last_ping = 0.0  # 화면이 보낸 마지막 신호(앱 창 자동 종료 판단용)
+        self.httpd = None
 
     def trip_view(self, tid):
         s = self.store
@@ -51,6 +54,18 @@ class Api:
             ],
             "warnings": package.check(s, tid),
         }
+
+    @route("GET", r"/api/ping")
+    def ping(self, m, q, body):
+        self.last_ping = time.time()
+        return {"tripdesk": True}
+
+    @route("POST", r"/api/quit")
+    def quit(self, m, q, body):
+        """화면의 '종료' 버튼. 응답을 보낸 뒤 서버를 끈다."""
+        if self.httpd:
+            threading.Timer(0.3, self.httpd.shutdown).start()
+        return {"ok": True}
 
     @route("GET", r"/api/trips")
     def list_trips(self, m, q, body):
@@ -518,9 +533,10 @@ def make_handler(api: Api, port_getter):
     return H
 
 
-def serve(store: Store | None = None, port: int = 0):
+def serve(store: Store | None = None, port: int = 0, with_api: bool = False):
     api = Api(store or Store())
     holder = {}
     httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(api, lambda: holder["port"]))
+    api.httpd = httpd
     holder["port"] = httpd.server_address[1]
-    return httpd, holder["port"]
+    return (httpd, holder["port"], api) if with_api else (httpd, holder["port"])

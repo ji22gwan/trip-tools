@@ -99,12 +99,16 @@ URL="$(grep -Eo 'http://127.0.0.1:[0-9]+/' "$T/run.txt" | head -1)"
 HOSTP="${URL#http://}"
 curl -s -H "Host: ${HOSTP%/}" "${URL}api/trips" | grep -q '"trips"' || { R="$(curl -s -i -H "Host: ${HOSTP%/}" "${URL}api/trips" 2>&1 | head -5)"; kill $PID; fail "Desk API 응답 없음: $URL / $R"; }
 kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
-ok "install-desk: 설치·실행·응답"
+grep -q "Terminal=false" "$XDG_DATA_HOME/applications/tripdesk.desktop" || [ "$(uname)" = "Darwin" ] || fail "데스크톱 항목이 터미널을 띄움"
+grep -q "Exec=.*tripdesk --app" "$XDG_DATA_HOME/applications/tripdesk.desktop" || [ "$(uname)" = "Darwin" ] || fail "앱 창 실행 옵션 없음"
+[ -f "$XDG_DATA_HOME/icons/hicolor/256x256/apps/tripdesk.png" ] || [ "$(uname)" = "Darwin" ] || fail "아이콘 설치 안 됨"
+ok "install-desk: 설치·실행·응답·아이콘"
 
 mkdir -p "$TRIPDESK_HOME/trips"; echo x > "$TRIPDESK_HOME/settings.json"
 YES=1 bash "$REPO/scripts/uninstall-desk.sh" > "$T/d2.txt" 2>&1 || fail "uninstall-desk 실패"
 [ ! -d "$T/home/.trip-tools/desk" ] && [ ! -e "$TRIPDESK_BIN_DIR/tripdesk" ] || fail "프로그램이 남음"
 [ -f "$TRIPDESK_HOME/settings.json" ] || fail "데이터가 기본으로 지워짐"
+[ ! -e "$XDG_DATA_HOME/icons/hicolor/256x256/apps/tripdesk.png" ] || fail "아이콘이 남음"
 ok "uninstall-desk: 프로그램만 삭제, 데이터는 보존"
 bash "$REPO/scripts/install-desk.sh" > /dev/null 2>&1
 YES=1 PURGE_DATA=1 bash "$REPO/scripts/uninstall-desk.sh" > "$T/d3.txt" 2>&1 || fail "purge 실패"

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E4F9A"/><stop offset="1" stop-color="#0F1B2D"/></linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D6E4FA"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity=".35"/></filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 전시장 평면도 격자 -->
+  <g stroke="#FFFFFF" stroke-opacity=".10" stroke-width="3" fill="none">
+    <path d="M64 150h384M64 256h384M64 362h384M150 64v384M256 64v384M362 64v384"/>
+  </g>
+  <!-- 이동 경로 -->
+  <path d="M92 400 C 150 340, 210 420, 270 372 S 380 330, 430 372" fill="none" stroke="#7FB0FF" stroke-width="10" stroke-linecap="round" stroke-dasharray="2 22"/>
+  <!-- 핀 -->
+  <g filter="url(#sh)">
+    <path d="M256 78c-69 0-122 52-122 118 0 86 96 180 114 198a11 11 0 0 0 16 0c18-18 114-112 114-198 0-66-53-118-122-118z" fill="url(#pin)"/>
+  </g>
+  <!-- 핀 속 녹음 파형 -->
+  <g fill="#1E4F9A">
+    <rect x="190" y="178" width="20" height="40" rx="10"/>
+    <rect x="222" y="148" width="20" height="100" rx="10"/>
+    <rect x="254" y="164" width="20" height="68" rx="10"/>
+    <rect x="286" y="136" width="20" height="124" rx="10" fill="#C2410C"/>
+    <rect x="318" y="180" width="20" height="36" rx="10" transform="translate(-4 0)"/>
+  </g>
+  <circle cx="430" cy="372" r="16" fill="#FF8A4C"/>
+  <circle cx="92" cy="400" r="12" fill="#FFFFFF"/>
+</svg>

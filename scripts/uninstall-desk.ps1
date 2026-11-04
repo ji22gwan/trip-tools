@@ -4,7 +4,7 @@ $HomeDir = if ($env:TRIP_TOOLS_HOME) { $env:TRIP_TOOLS_HOME } else { Join-Path $
 $Data = if ($env:TRIPDESK_HOME) { $env:TRIPDESK_HOME } else { Join-Path $env:USERPROFILE 'TripDesk' }
 if ($env:YES -ne '1') { if ((Read-Host 'Trip Desk 프로그램을 삭제할까요? [y/N]') -notmatch '^[yY]') { Write-Host '취소했어요.'; exit 0 } }
 Remove-Item (Join-Path $HomeDir 'desk') -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item (Join-Path $HomeDir 'tripdesk.cmd') -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $HomeDir 'tripdesk.cmd') -Force -ErrorAction SilentlyContinue  # 예전 버전이 만들던 파일
 Remove-Item (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Trip Desk.lnk') -Force -ErrorAction SilentlyContinue
 if ((Test-Path $HomeDir) -and -not (Get-ChildItem $HomeDir -Force)) { Remove-Item $HomeDir -Force }
 Write-Host '프로그램을 삭제했어요.'

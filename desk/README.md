@@ -9,6 +9,8 @@ pip install -r requirements.txt            # Excel(.xlsx) 가져오기, Word 보
 pip install -r requirements-whisper.txt    # (선택) 녹음 → 글 변환. 용량이 커요
 python3 -m tripdesk                         # 또는 scripts/install-desk.* 로 설치
 ```
+`--app` 을 붙이면(설치된 아이콘은 이 방식) 주소창 없는 앱 창(Chrome/Edge/Chromium)으로 뜨고, **창을 닫으면 프로그램도 꺼져요**. 터미널은 보이지 않고 오류는 `~/TripDesk/tripdesk.log` 에 남아요. 크롬 계열이 없으면 기본 브라우저로 열리고, 화면의 '프로그램 종료' 버튼으로 끌 수 있어요(창만 닫으면 약 2.5분 뒤 자동 종료). 이미 떠 있을 때 아이콘을 또 누르면 창만 하나 더 열려요.
+
 브라우저가 열립니다. 데이터는 `~/TripDesk/trips/` 에 저장됩니다(`TRIPDESK_HOME` 으로 변경).
 
 ## 화면 (왼쪽 메뉴)
@@ -47,6 +49,7 @@ python3 -m tripdesk                         # 또는 scripts/install-desk.* 로 
 - AI가 준 업체·수치는 틀릴 수 있어요. 출처 링크와 '확인 필요' 표시를 꼭 확인하세요.
 - Word 에는 JPG/PNG 사진만 들어가요(HEIC/WebP 는 빠져요).
 - 큰 ZIP 은 임시 파일로 받지만, 수 GB 급은 시험하지 않았어요.
+- 앱 창 + 자동 종료는 Ubuntu 에서 실제 Chrome(가상 화면)으로 확인했어요. Windows 바로가기(pythonw)와 macOS 앱 묶음은 직접 실행해 보지 못했어요.
 - 설치는 `scripts/install-desk.*`(Python 3.10+ 필요). 단독 실행 파일은 아직 없어요.
 
 ## 시험
