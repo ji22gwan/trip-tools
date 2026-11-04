@@ -1,0 +1,13 @@
+name = "trip-translate"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# 이미 테스트해 보신 Gemini 모델 ID로 맞춰 주세요.
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+# 폰 앱을 올린 주소(예: https://trip-field.pages.dev). 여러 개면 쉼표로 구분. "*" 는 모두 허용.
+ALLOWED_ORIGIN = "*"
+
+# 비밀 값은 파일에 적지 않고 명령으로 등록합니다.
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put TOKENS

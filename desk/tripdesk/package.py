@@ -1,0 +1,68 @@
+"""폰 앱(Trip Field)이 읽는 출장 패키지 ZIP 만들기."""
+import io
+import json
+import re
+import zipfile
+
+from . import SCHEMA_VERSION, research
+from .store import Store, StoreError
+
+
+def _slug(name: str) -> str:
+    s = re.sub(r"[^\w\-]+", "_", name.strip(), flags=re.UNICODE).strip("_")
+    return s[:40] or "trip"
+
+
+def picked(companies: list[dict]) -> list[dict]:
+    """패키지에 들어갈 업체: 후보로만 있는(picked=False) 것은 빼고, 직접 만들거나 가져온 것은 넣는다."""
+    return [c for c in companies if c.get("picked") is not False]
+
+
+def check(store: Store, trip_id: str) -> list[str]:
+    """만들기 전에 사용자에게 알려줄 점검 사항."""
+    warns = []
+    if not store.list_maps(trip_id):
+        warns.append("전시장 지도가 아직 없어요. 지도 없이도 만들 수 있지만 폰에서 따로 불러와야 해요.")
+    elif len(store.list_maps(trip_id)) > 1:
+        warns.append(f"지도가 여러 장이에요. 패키지에는 대표 지도 '{store.primary_map(trip_id).name}' 1장만 들어가요.")
+    cs = picked(store.get_companies(trip_id))
+    if not cs:
+        warns.append("패키지에 넣을 업체를 아직 고르지 않았어요. 현장에서 하나씩 추가해야 합니다.")
+    elif any(c.get("day") is None for c in cs):
+        warns.append(f"일정(일차)이 정해지지 않은 업체가 {sum(c.get('day') is None for c in cs)}곳 있어요.")
+    unverified = [c for c in cs if c.get("source") == "ai" and not c.get("verified")]
+    if unverified:
+        warns.append(f"AI가 찾았지만 참가 여부를 확인하지 못한 업체가 {len(unverified)}곳 있어요. 공식 목록에서 확인해 주세요.")
+    return warns
+
+
+def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
+    trip = store.get_trip(trip_id)
+    if not trip.get("days"):
+        raise StoreError("출장 날짜가 없습니다.")
+    root = f"trip_{_slug(trip['name'])}"
+    trip_out = {
+        "schema": SCHEMA_VERSION,
+        "id": trip["id"],
+        "name": trip["name"],
+        "venue": trip.get("venue", ""),
+        "purpose": trip.get("purpose", ""),
+        "days": trip["days"],
+    }
+    companies = [
+        {
+            "id": c["id"], "name": c["name"], "category": c.get("category") or "기타",
+            "hall": c.get("hall", ""), "booth": c.get("booth", ""), "day": c.get("day"),
+            "preNotes": research.package_note(c), "questions": c.get("questions", []),
+        }
+        for c in picked(store.get_companies(trip_id))
+    ]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr(f"{root}/trip.json", json.dumps(trip_out, ensure_ascii=False, indent=2))
+        z.writestr(f"{root}/companies.json", json.dumps(companies, ensure_ascii=False, indent=2))
+        z.writestr(f"{root}/glossary.json", json.dumps({"terms": store.get_glossary(trip_id)}, ensure_ascii=False, indent=2))
+        primary = store.primary_map(trip_id)  # 폰에는 대표 지도 1장만 보낸다
+        if primary:
+            z.write(primary, f"{root}/map/{primary.name}")
+    return f"{root}.zip", buf.getvalue()

@@ -1,0 +1,12 @@
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.wrangler/
+.dev.vars
+install.env
+settings.json
+*.zip
+!sample/*.zip
+.DS_Store

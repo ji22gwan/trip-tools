@@ -1,0 +1,16 @@
+{
+  "name": "Trip Field",
+  "short_name": "Trip Field",
+  "description": "전시회·출장 현장용: 맵, 방문 체크, 업체별 녹음·메모, 번역",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f5f7",
+  "theme_color": "#c2410c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

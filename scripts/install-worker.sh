@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# 번역 서버(Cloudflare Worker)와 폰 앱(Cloudflare Pages)을 내 Cloudflare 계정에 설치한다. macOS / Ubuntu.
+# 다시 실행해도 안전하다(같은 토큰을 유지하고 코드만 갱신한다).
+#
+# 미리 준비: Node.js 18+, Cloudflare 계정(무료), Gemini API 키
+# 비대화 실행용 환경변수: GEMINI_API_KEY, GEMINI_MODEL, SKIP_PAGES=1
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKER_NAME="${WORKER_NAME:-trip-translate}"
+PAGES_NAME="${PAGES_NAME:-trip-field}"
+STATE_DIR="${TRIP_TOOLS_HOME:-$HOME/.trip-tools}"
+STATE_FILE="$STATE_DIR/install.env"
+DEFAULT_MODEL="gemini-3.5-flash-lite"
+
+say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+die() { printf '\n\033[31m오류: %s\033[0m\n' "$*" >&2; exit 1; }
+
+command -v node >/dev/null 2>&1 || die "Node.js 가 없어요. https://nodejs.org 에서 LTS 버전을 설치한 뒤 다시 실행해 주세요."
+command -v npm  >/dev/null 2>&1 || die "npm 이 없어요. Node.js 를 다시 설치해 주세요."
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
+[ "$NODE_MAJOR" -ge 18 ] || die "Node.js 18 이상이 필요해요(현재 $(node -v))."
+
+mkdir -p "$STATE_DIR"; chmod 700 "$STATE_DIR" 2>/dev/null || true
+# shellcheck disable=SC1090
+[ -f "$STATE_FILE" ] && . "$STATE_FILE" || true
+
+say "1/6 도구 설치 (wrangler)"
+( cd "$ROOT/worker" && npm install --no-audit --no-fund --loglevel=error )
+WR() { ( cd "$ROOT/worker" && npx --no-install wrangler "$@" ); }
+
+say "2/6 Cloudflare 로그인 확인"
+if ! WR whoami >/dev/null 2>&1; then
+  echo "브라우저가 열리면 Cloudflare 계정으로 로그인하고 '허용'을 눌러 주세요."
+  WR login
+fi
+
+say "3/6 Gemini 설정"
+if [ -z "${GEMINI_API_KEY:-}" ]; then
+  printf 'Gemini API 키를 붙여 넣고 Enter (화면에 보이지 않아요): '
+  read -rs GEMINI_API_KEY; echo
+fi
+[ -n "$GEMINI_API_KEY" ] || die "Gemini API 키가 비어 있어요."
+if [ -z "${GEMINI_MODEL:-}" ]; then
+  printf '사용할 모델 ID [기본: %s]: ' "$DEFAULT_MODEL"
+  read -r GEMINI_MODEL || true
+fi
+GEMINI_MODEL="${GEMINI_MODEL:-$DEFAULT_MODEL}"
+echo "모델: $GEMINI_MODEL (바꾸려면 GEMINI_MODEL=... 환경변수로 실행)"
+
+# 접근 토큰: 이미 만든 게 있으면 그대로 쓴다
+if [ -z "${TOKEN:-}" ]; then
+  if command -v openssl >/dev/null 2>&1; then TOKEN="$(openssl rand -hex 24)"
+  else TOKEN="$(node -e 'process.stdout.write(require("crypto").randomBytes(24).toString("hex"))')"; fi
+fi
+
+PAGES_URL=""
+if [ "${SKIP_PAGES:-0}" != "1" ]; then
+  say "4/6 폰 앱 배포 (Cloudflare Pages)"
+  WR pages project create "$PAGES_NAME" --production-branch main >/dev/null 2>&1 || true   # 이미 있으면 무시
+  OUT="$(cd "$ROOT/worker" && npx --no-install wrangler pages deploy "$ROOT/field-pwa" --project-name "$PAGES_NAME" --branch main 2>&1)" || { echo "$OUT"; die "폰 앱 배포에 실패했어요."; }
+  echo "$OUT" | tail -5
+  # 배포 한 번마다 붙는 주소(8자리코드.이름.pages.dev)가 아니라 프로젝트 고정 주소(이름.pages.dev)를 쓴다.
+  # 1순위: Cloudflare 에 프로젝트의 실제 주소를 물어본다 / 2순위: 출력에서 앞의 8자리 코드를 뗀다
+  PAGES_URL="$(WR pages project list --json 2>/dev/null | node -e '
+    const name = process.argv[1]; let t = require("fs").readFileSync(0, "utf8");
+    try {
+      const rows = JSON.parse(t.slice(t.indexOf("[")));
+      for (const r of rows) {
+        const vals = Object.values(r).map(String);
+        if (!vals.includes(name)) continue;
+        const doms = vals.join(",").match(/[a-z0-9-]+\.pages\.dev/g) || [];
+        const d = doms.find((x) => x === name + ".pages.dev") || doms.find((x) => x.startsWith(name)) || doms[0];
+        if (d) { process.stdout.write("https://" + d); break; }
+      }
+    } catch (e) {}
+  ' "$PAGES_NAME" || true)"
+  if [ -z "$PAGES_URL" ]; then
+    PAGES_URL="$(echo "$OUT" | grep -Eo "https://[a-z0-9.-]+\.pages\.dev" | tail -1 | sed -E 's#^https://[0-9a-f]{8}\.#https://#' || true)"
+  fi
+else
+  say "4/6 폰 앱 배포 건너뜀 (SKIP_PAGES=1)"
+fi
+
+say "5/6 번역 서버 배포 (Cloudflare Worker)"
+ORIGIN="${PAGES_URL:-*}"
+OUT="$(cd "$ROOT/worker" && npx --no-install wrangler deploy --name "$WORKER_NAME" --var "GEMINI_MODEL:$GEMINI_MODEL" --var "ALLOWED_ORIGIN:$ORIGIN" 2>&1)" || { echo "$OUT"; die "번역 서버 배포에 실패했어요."; }
+echo "$OUT" | tail -5
+WORKER_URL="$(echo "$OUT" | grep -Eo "https://[a-z0-9.-]+\.workers\.dev" | head -1 || true)"
+
+say "6/6 비밀 값 등록 (Gemini 키, 접근 토큰)"
+SECRETS="$(mktemp)"; trap 'rm -f "$SECRETS"' EXIT; chmod 600 "$SECRETS"
+node -e 'process.stdout.write(JSON.stringify({GEMINI_API_KEY:process.argv[1],TOKENS:process.argv[2]}))' "$GEMINI_API_KEY" "$TOKEN" > "$SECRETS"
+( cd "$ROOT/worker" && npx --no-install wrangler secret bulk "$SECRETS" --name "$WORKER_NAME" ) >/dev/null || die "비밀 값 등록에 실패했어요."
+
+umask 077
+cat > "$STATE_FILE" <<STATE
+WORKER_NAME="$WORKER_NAME"
+PAGES_NAME="$PAGES_NAME"
+WORKER_URL="$WORKER_URL"
+PAGES_URL="$PAGES_URL"
+GEMINI_MODEL="$GEMINI_MODEL"
+TOKEN="$TOKEN"
+STATE
+chmod 600 "$STATE_FILE"
+
+cat <<DONE
+
+=====================================================
+설치가 끝났어요.
+
+  폰 앱 주소      : ${PAGES_URL:-(건너뜀)}
+  번역 서버 주소  : ${WORKER_URL:-(주소를 찾지 못했어요. Cloudflare 대시보드에서 확인하세요)}
+  접근 토큰       : $TOKEN
+  모델            : $GEMINI_MODEL
+
+폰에서: ① 폰 앱 주소를 열고 '홈 화면에 추가'
+        ② 설정(톱니바퀴)에 '번역 서버 주소'와 '접근 토큰'을 입력하고 '연결 시험'
+토큰은 $STATE_FILE 에도 저장돼 있어요(본인만 읽을 수 있음).
+번역이 느리면 번역 팝업 아래의 시간 표시를 확인하세요.
+=====================================================
+DONE
