@@ -26,15 +26,30 @@ def main(argv: list[str]) -> int:
     profile = QWebEngineProfile("tripdesk")  # 이름이 있는 프로필 = 설정(localStorage)이 보존된다
     profile.setHttpAcceptLanguage("ko,en")
 
+    opened = []  # 시험용 기록
+
+    def open_external(u):
+        opened.append(u.toString())
+        if os.environ.get("TRIPDESK_QT_SHOT"):
+            print("OPEN", u.toString(), flush=True)
+            return
+        QDesktopServices.openUrl(u)
+
+    class Catcher(QWebEnginePage):
+        """새 창 요청(target=_blank, window.open)이 향하는 곳. 주소를 받는 즉시 기본 브라우저로 넘기고 막는다."""
+
+        def acceptNavigationRequest(self, u, nav_type, is_main):
+            open_external(u)
+            return False
+
     class Page(QWebEnginePage):
-        def createWindow(self, _type):  # target=_blank, window.open → 기본 브라우저
-            tmp = QWebEnginePage(self)
-            tmp.urlChanged.connect(lambda u: (QDesktopServices.openUrl(u), tmp.deleteLater()))
-            return tmp
+        def createWindow(self, _type):
+            self._catcher = Catcher(self.profile(), self)
+            return self._catcher
 
         def acceptNavigationRequest(self, u, nav_type, is_main):  # 이 앱 밖의 주소는 창 안에서 열지 않는다
             if is_main and u.host() not in ("127.0.0.1", "localhost") and u.scheme() in ("http", "https"):
-                QDesktopServices.openUrl(u)
+                open_external(u)
                 return False
             return super().acceptNavigationRequest(u, nav_type, is_main)
 
