@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import booths, cloud, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
+from . import booths, cloud, planreport, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
 from .store import Store, StoreError
 
 WEB = Path(__file__).parent / "web"
@@ -455,6 +455,20 @@ class Api:
             st["points"][cid] = [str(p).strip() for p in pts if str(p).strip()]
         daily.save_state(self.store, tid, n, st)
         return {"report": reports.build_day(self.store, tid, n)}
+
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/plan")
+    def get_plan(self, m, q, body):
+        return planreport.view(self.store, m["tid"])
+
+    @route("PUT", r"/api/trips/(?P<tid>[^/]+)/plan")
+    def put_plan(self, m, q, body):
+        planreport.save(self.store, m["tid"], jbody(body))
+        return planreport.view(self.store, m["tid"])
+
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/plan\.md")
+    def plan_md(self, m, q, body):
+        trip = self.store.get_trip(m["tid"])
+        return ("bytes", planreport.build_markdown(self.store, m["tid"]).encode("utf-8"), "text/markdown; charset=utf-8", f"{trip['name']}_출장계획서.md")
 
     @route("GET", r"/api/trips/(?P<tid>[^/]+)/days/(?P<n>\d+)/report\.md")
     def day_md(self, m, q, body):

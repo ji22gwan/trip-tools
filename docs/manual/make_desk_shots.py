@@ -119,6 +119,15 @@ def main():
         pg.locator("text=용어집").first.click(); pg.wait_for_timeout(500)
         shot("desk-17-glossary")
 
+        # 출장 계획서(Markdown → PDF)
+        call("PUT", f"/trips/{tid}/plan", dict(goals=["협동로봇·비전 센서·안전 시스템 최신 동향 파악", "조선 용접·운반 공정 적용 가능 업체 후보 압축"],
+                                              expected=["카테고리별 유력 업체 3~5곳 선정과 담당자 연락처 확보", "업체별 확인 질문 답변을 정리해 최종 보고서(PPT)로 공유"]))
+        go(f"prep/{tid}"); pg.wait_for_timeout(500)
+        pg.get_by_role("button", name="출장 계획서 (Markdown)").click(); pg.wait_for_timeout(500)
+        shot("desk-36-plan-report", clip_modal=True)
+        pg.locator(".modalbg").evaluate("e=>e.remove()")
+        (pathlib.Path(__file__).parent / "sample_plan_report.md").write_bytes(call("GET", f"/trips/{tid}/plan.md"))
+
 
         # 세션·행사
         call("PUT", f"/trips/{tid}/sessions", D.SESSIONS)

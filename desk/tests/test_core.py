@@ -271,3 +271,19 @@ def test_multi_booth_company_one_checkbox_many_stops(store):
     rows = companies_io.merge_companies(store.get_companies(tid), [{"name": "codewerk gmbh", "category": "x", "booths": [{"hall": "6", "booth": "6-350G", "day": 2}, {"hall": "7", "booth": "7-1", "day": None}]}])
     cw = rows[0][0]
     assert len(cw["booths"]) == 3 and cw["booths"][1]["day"] == 2 and cw["id"] == cs[0]["id"]
+
+
+def test_plan_report_markdown(store):
+    from tripdesk import planreport
+    t = store.create_trip("계획 엑스포", "데모센터", "2026-11-24", "2026-11-26", "휴머노이드 동향 조사\n용접 자동화 확인")
+    tid = t["id"]
+    store.set_companies(tid, [
+        {"id": "c-1", "name": "Codewerk GmbH", "category": "AI.소프트웨어", "booths": [{"hall": "5", "booth": "5-210", "day": 1}, {"hall": "6", "booth": "6-350G", "day": 3}],
+         "picked": True, "source": "ai", "verified": True, "reason": "[키워드] 비전 소프트웨어"},
+        {"id": "c-2", "name": "후보만", "category": "x", "picked": False}])
+    md = planreport.build_markdown(store, tid)
+    assert "## 1. 출장 정보" in md and "## 2. 출장 목표 및 예상 결과" in md and "## 3. 방문 후보 업체 (1곳, 방문 지점 2곳)" in md
+    assert "- 휴머노이드 동향 조사" in md and "5 · 5-210<br>6 · 6-350G" in md and "[키워드] 비전 소프트웨어" in md and "후보만" not in md
+    planreport.save(store, tid, {"goals": "A\nB", "expected": ["C"]})
+    md = planreport.build_markdown(store, tid)
+    assert "- A" in md and "- C" in md and "휴머노이드 동향 조사" not in md

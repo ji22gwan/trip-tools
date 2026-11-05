@@ -184,6 +184,7 @@ function candsTab(s) {
         h("div", { class: "sub" }, s.stops - s.dated ? `일정 미배정 ${s.stops - s.dated}곳 · '일정 배분' 탭에서 한 번에 나눌 수 있어요` : "모든 선택 업체에 방문일이 있어요")),
       h("div", { class: "row" },
         h("button", { class: "btn", onclick: () => openCompanyEditor(null) }, "+ 업체 직접 추가"), csvButton(),
+        h("button", { class: "btn", onclick: openPlanReport }, "출장 계획서 (Markdown)"),
         h("button", { class: "btn primary", onclick: confirmPackage }, "패키지 확정 · 폰으로 보내기"))));
 }
 
@@ -227,28 +228,33 @@ function planTab(s) {
   return h("div", { style: "display:flex;flex-direction:column" },
     h("div", { class: "pad", style: "padding-bottom:0" }, h("div", { class: "row" },
       h("button", { class: "btn primary sm", onclick: autoAssign }, "홀 기준으로 자동 배분"),
-      h("span", { class: "sub" }, `아직 일차가 없는 곳만 같은 홀끼리 묶어 나눠요(첫날은 둘러볼 시간을 위해 조금 가볍게). 이미 정한 일정은 그대로 둬요.${stops.length > picked.length ? ` 선택 업체 ${picked.length}곳 중 부스가 여럿인 업체가 있어 방문 지점은 ${stops.length}곳이에요(⚠ 표시).` : ""}`))),
+      h("span", { class: "sub" }, `아직 일차가 없는 곳만 같은 홀끼리 묶어 날짜별로 고르게 나눠요. 한 날에 몰리면 2·3일차 쪽으로 가요(첫날은 둘러볼 시간). 이미 정한 일정은 그대로 둬요.${stops.length > picked.length ? ` 선택 업체 ${picked.length}곳 중 부스가 여럿인 업체가 있어 방문 지점은 ${stops.length}곳이에요(⚠ 표시).` : ""}`))),
     h("div", { class: "board" }, col("미배정", stops.filter((x) => !x.b.day)), ...days.map((d, i) => col(`Day ${i + 1} · ${d.slice(5)}`, stops.filter((x) => x.b.day === i + 1)))));
 }
 
 function autoAssign() {
   const n = P.v.trip.days.length;
   const all = P.v.companies.filter((c) => c.picked !== false).flatMap((c) => bs(c).map((b, i) => ({ c, b, i })));
-  const todo = all.filter((x) => !x.b.day).sort((a, b) => (a.b.hall || "~").localeCompare(b.b.hall || "~") || (a.b.booth || "").localeCompare(b.b.booth || "", undefined, { numeric: true }));
+  const todo = all.filter((x) => !x.b.day);
   if (!todo.length) return toast("나눌 업체가 없어요.");
   const load = P.v.trip.days.map((_, i) => all.filter((x) => x.b.day === i + 1).length);
   const total = load.reduce((a, b) => a + b, 0) + todo.length;
-  // 같은 조건이면 첫날을 가볍게(전체를 둘러볼 시간): 첫날 몫은 다른 날의 약 60%. 이미 정해 둔 일정은 그대로 두고 그 위에 채운다.
-  const w = P.v.trip.days.map((_, i) => (i === 0 && n > 1 ? 0.6 : 1));
-  const W = w.reduce((a, b) => a + b, 0);
-  const cap = w.map((x) => Math.max(1, Math.round((total * x) / W)));
+  const cap = Math.ceil(total / n);
+  // 같은 홀끼리 묶어 두되(한 번에 둘러보기), 한 홀이 너무 크면 나눈다.
+  const byHall = new Map();
+  todo.forEach((x) => { const k = x.b.hall || "?"; byHall.set(k, [...(byHall.get(k) || []), x]); });
+  const groups = [];
+  for (const list of byHall.values()) {
+    list.sort((a, b) => (a.b.booth || "").localeCompare(b.b.booth || "", undefined, { numeric: true }));
+    for (let i = 0; i < list.length; i += cap) groups.push(list.slice(i, i + cap));
+  }
+  // 큰 묶음부터 가장 한가한 날에 넣는다. 같은 수면 뒤쪽 날을 고른다 → 한 날에 몰려도 그날은 2·3일차가 되고 첫날은 가벼워진다.
   const assign = new Map();
-  let d = 0;
-  todo.forEach((x, k) => {
-    const prev = todo[k - 1];
-    while (d < n - 1 && load[d] >= cap[d] && !(prev && prev.b.hall === x.b.hall && x.b.hall && load[d] < cap[d] + 2)) d++;
-    assign.set(`${x.c.id}#${x.i}`, d + 1);
-    load[d]++;
+  groups.sort((a, b) => b.length - a.length).forEach((g) => {
+    let d = 0;
+    for (let k = 1; k < n; k++) if (load[k] <= load[d]) d = k;
+    g.forEach((x) => assign.set(`${x.c.id}#${x.i}`, d + 1));
+    load[d] += g.length;
   });
   guard(() => saveCompanies(P.v.companies.map((c) => ({ ...c, booths: bs(c).map((b, i) => (assign.has(`${c.id}#${i}`) ? { ...b, day: assign.get(`${c.id}#${i}`) } : b)) }))));
   toast(`${todo.length}곳을 나눴어요. 필요하면 ◀ ▶ 로 옮기세요.`);
@@ -301,6 +307,25 @@ function glossTab() {
     h("div", { class: "msg" }, "여기 적은 용어는 ① 폰의 번역 힌트, ② 녹음 전사·AI 교정에서 '이렇게 적어 달라'는 기준으로 쓰여요. 회사명, 제품명, 약어를 넣어 두세요."),
     ta, h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => guard(async () => { P.v = await api("PUT", `/trips/${P.tid}/glossary`, ta.value.split("\n")); redraw(); toast("저장했어요."); }) }, "저장"),
       h("span", { class: "sub" }, `${P.v.glossary.length}개`)));
+}
+
+// ---------------- 출장 계획서 (Markdown → PDF 1~2쪽) ----------------
+function openPlanReport() {
+  guard(async () => {
+    const V = await api("GET", `/trips/${P.tid}/plan`);
+    modal("출장 계획서", (m, close) => {
+      const goals = h("textarea", { style: "min-height:90px", placeholder: "한 줄에 하나" }, (V.goals.length ? V.goals : V.defaults.goals).join("\n"));
+      const exp = h("textarea", { style: "min-height:90px", placeholder: "한 줄에 하나" }, (V.expected.length ? V.expected : V.defaults.expected).join("\n"));
+      const lines = (t) => t.value.split("\n").map((x) => x.trim()).filter(Boolean);
+      const save = () => api("PUT", `/trips/${P.tid}/plan`, { goals: lines(goals), expected: lines(exp) });
+      m.append(h("div", { class: "msg" }, "출장 정보(행사·장소·기간·항공·숙소)와 방문 후보 업체(선별 사유 포함)는 자동으로 채워져요. 목표와 예상 결과만 확인·수정하세요. 처음 보이는 문장은 출장 목적과 선택한 업체로 만든 초안이에요."),
+        h("div", { class: "field" }, h("label", {}, "출장 목표 (한 줄에 하나)"), goals), h("div", { class: "field" }, h("label", {}, "예상 결과 (한 줄에 하나)"), exp),
+        h("div", { class: "sub" }, "내려받은 .md 를 PDF 로 바꾸려면: docs/manual/md2pdf.sh 파일.md (1~2쪽 A4 서식). 또는 VS Code 의 Markdown PDF 확장, 브라우저 인쇄도 돼요."),
+        h("div", { class: "row", style: "justify-content:flex-end" },
+          h("button", { class: "btn", onclick: () => guard(async () => { await save(); toast("저장했어요."); }) }, "저장"),
+          h("button", { class: "btn primary", onclick: () => guard(async () => { await save(); download(`/trips/${P.tid}/plan.md`); }) }, "저장하고 Markdown 내려받기")));
+    });
+  });
 }
 
 // ---------------- 업체 편집/추가 ----------------
