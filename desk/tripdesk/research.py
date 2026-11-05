@@ -44,9 +44,6 @@ def build_keyword_prompt(trip: dict, keywords: list[str], count: int = 20, site_
     if not keywords:
         raise ResearchError("찾고 싶은 키워드를 한 개 이상 적어 주세요.")
     count = max(5, min(int(count or 20), 100))
-    ndays = max(1, len(trip.get("days") or []))
-    per_day = 10
-    target = min(count, per_day * ndays)  # 하루에 볼 수 있는 건 10곳 안팎
     year = trip["days"][0][:4]
     kw = ", ".join(keywords)
     skip = ""
@@ -63,7 +60,7 @@ Official site (if known): {site_url or 'unknown'}
 Keywords: {kw}
 Why I am visiting (Korean, optional context): {purpose or '(not given)'}
 {skip}
-Task: use web search. Start from the official exhibitor directory / exhibitor search of this exact edition, then confirm with company pages or press releases. Give about {target} companies (roughly {per_day} per fair day x {ndays} days, because I can only look at about {per_day} companies a day; never more than {count}), most relevant first. Do not return only literal keyword matches; build a varied list from these groups (roughly 50-60% from the first group, the rest spread over the others):
+Task: use web search. Start from the official exhibitor directory / exhibitor search of this exact edition, then confirm with company pages or press releases. Give up to {count} companies, most relevant first. Do not return only literal keyword matches; build a varied list from these groups (roughly 50-60% from the first group, the rest spread over the others):
   1. [키워드] companies matching or closely related to my keywords.
   2. [글로벌] globally well-known companies in these fields (market leaders, major robot / automation / sensor / AI makers) that exhibit at this edition.
   3. [최근 이슈] companies that made big news in the last 12 months (before {today}), in Korea or abroad: new products, large funding, acquisitions, partnerships, major deployments or controversies.
@@ -71,13 +68,13 @@ Task: use web search. Start from the official exhibitor directory / exhibitor se
 
 Rules:
 - If you cannot browse the web in this conversation, say so and stop. Do not answer from memory.
-- Quality over quantity: the list must be short enough to actually visit (about {target}). Search widely, then SELECT.
+- This is a SHORTLIST of key companies worth planning a visit around, not a full directory: I will add other companies myself on site. Search widely, then SELECT the ones with the most impact (well-known companies, companies with news or events at the fair, strong keyword fit) so I do not waste time walking between near-identical booths.
 - LEAVE OUT very small or obscure companies (tiny firms, pure resellers / distributors, no notable product, no real presence at the fair) unless one has a clearly relevant innovation, award or new product this year. Prefer companies with real scale, a recognizable product line or a strong reason to visit.
 - Group similar companies (same product type or niche) and keep only the 1-3 most representative ones of each group (the market leader, the most relevant to my keywords, a notable challenger). Do not list ten near-identical sensor or PC makers. Mention in "reason" which similar companies you left out, e.g. "(유사: A, B 제외)".
-- "about {target}" is a guide, not a quota: if fewer genuinely deserve a visit, return fewer. If the full list would not fit in one reply, return fewer complete entries rather than cutting the JSON off.
+- "up to {count}" is a maximum, not a target: if fewer genuinely deserve a visit, return fewer. If the full list would not fit in one reply, return fewer complete entries rather than cutting the JSON off.
 - Never invent companies, hall numbers or booth numbers. Leave "hall" and "booth" empty when you did not see them in a source.
 - Booths (required): list EVERY hall/booth of the company, one entry per booth in "booths": {{"hall":"5","booth":"5-210"}}. Return a company with several booths ONCE, with all its booths. Search result lists often show only one booth or just "N booths", so for every company open its detail page on the official site (the exhibitor's own page in the exhibitor directory) and copy all of its booths from there. Never stop at the first booth. If the page says "3 booths", "booths" must have 3 entries. Only if you truly cannot open the detail page after trying, list the booths you saw and add "(부스 N곳 중 일부 확인)" to the reason; do not drop the company for that. Do not repeat the company.
-- Coverage: do not stop at the first page of one search. For each keyword also try 3-5 closely related search terms (synonyms, adjacent technologies, product names) and look at result pages 2-3 when page 1 is full, so the final pick is representative. Companies already on my list (above) do not count toward {target}; if most good ones are already there, return fewer and say so in "notes".
+- Coverage: do not stop at the first page of one search. For each keyword also try 3-5 closely related search terms (synonyms, adjacent technologies, product names) and look at result pages 2-3 when page 1 is full, so the final pick is representative. If most good companies are already on my list (above), return fewer and say so in "notes".
 - MUST EXCLUDE any company whose participation in this edition you could not confirm on the official site (the official exhibitor directory / exhibitor list of this exact edition). Do not list unconfirmed companies at all, even if they look relevant.
 - INCLUDE companies that are similar or closely related to my keywords even when they do not fall perfectly into the keyword's category (adjacent technology, component or system suppliers). In "reason" say how it is similar, and in "matched" give the closest keyword. Rank exact matches first.
 - "verified": must be true for every company you return (it was confirmed on the official site).

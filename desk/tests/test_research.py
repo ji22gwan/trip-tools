@@ -28,8 +28,8 @@ def test_keyword_prompt_has_keywords_rules_and_format():
     assert "MUST EXCLUDE" in p and "official site" in p and "similar or closely related" in p
     with pytest.raises(research.ResearchError):
         research.build_keyword_prompt(TRIP, [])
-    assert "never more than 100" in research.build_keyword_prompt(TRIP, ["x"], 999)
-    assert "never more than 10)" in research.build_keyword_prompt(TRIP, ["x"], 10)
+    assert "up to 100 companies" in research.build_keyword_prompt(TRIP, ["x"], 999)
+    assert "up to 10 companies" in research.build_keyword_prompt(TRIP, ["x"], 10)
 
 
 def test_split_keywords():
@@ -112,10 +112,8 @@ def test_keyword_prompt_does_not_drop_multi_booth_and_widens():
     assert "list EVERY hall/booth" in p and "open its detail page" in p and "closely related search terms" in p and "Old Co" in p
 
 
-def test_keyword_prompt_targets_ten_per_day_and_drops_tiny_firms():
+def test_keyword_prompt_shortlist_rules():
     from tripdesk import research
-    p = research.build_keyword_prompt({"name": "X", "days": ["2026-11-24", "2026-11-25", "2026-11-26"], "venue": "V"}, ["a"], 100)
-    assert "Give about 30 companies" in p and "never more than 100" in p
+    p = research.build_keyword_prompt({"name": "X", "days": ["2026-11-24", "2026-11-25", "2026-11-26"], "venue": "V"}, ["a"], 40)
+    assert "Give up to 40 companies" in p and "SHORTLIST" in p and "about {" not in p
     assert "LEAVE OUT very small or obscure" in p and "1-3 most representative" in p
-    assert "Give about 20 companies" in research.build_keyword_prompt({"name": "X", "days": ["2026-11-24", "2026-11-25"], "venue": "V"}, ["a"], 100)
-    assert "Give about 10 companies" in research.build_keyword_prompt({"name": "X", "days": ["2026-11-24", "2026-11-25", "2026-11-26"], "venue": "V"}, ["a"], 10)
