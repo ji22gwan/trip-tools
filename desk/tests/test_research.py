@@ -104,3 +104,9 @@ def test_api_prompt_paste_pick_package(store):
         assert not any("exhibitor" in n for n in z.namelist())
     finally:
         httpd.shutdown()
+
+
+def test_keyword_prompt_does_not_drop_multi_booth_and_widens():
+    from tripdesk import research
+    p = research.build_keyword_prompt({"name": "X", "days": ["2026-11-24", "2026-11-26"], "venue": "V"}, ["비전 센서"], 30, "", ["Old Co"])
+    assert "Never drop or skip a company because it has several booths" in p and "closely related search terms" in p and "Old Co" in p
