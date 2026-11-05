@@ -117,3 +117,9 @@ def test_keyword_prompt_shortlist_rules():
     p = research.build_keyword_prompt({"name": "X", "days": ["2026-11-24", "2026-11-25", "2026-11-26"], "venue": "V"}, ["a"], 40)
     assert "Give up to 40 companies" in p and "SHORTLIST" in p and "about {" not in p
     assert "LEAVE OUT very small or obscure" in p and "1-3 most representative" in p
+
+
+def test_keyword_prompt_reuses_earlier_findings():
+    from tripdesk import research
+    p = research.build_keyword_prompt({"name": "X", "days": ["2026-11-24"], "venue": "V"}, ["a"], 20)
+    assert "do NOT search for it again" in p and "I cleared it" in p
