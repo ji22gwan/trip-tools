@@ -283,7 +283,7 @@ def test_plan_report_markdown(store):
         {"id": "c-2", "name": "후보만", "category": "x", "picked": False}])
     md = planreport.build_markdown(store, tid)
     assert "## 1. 출장 정보" in md and "## 2. 출장 목표 및 예상 결과" in md and "## 3. 방문 후보 업체 (1곳, 방문 지점 2곳)" in md
-    assert "- 휴머노이드 동향 조사" in md and "5 · 5-210<br>6 · 6-350G" in md and "[키워드] 비전 소프트웨어" in md and "후보만" not in md
+    assert "- 휴머노이드 동향 조사" in md and "| 업체 | 분류 | 홀 - 부스 | 선별 사유 |" in md and "방문일" not in md and "5\u00a0-\u00a0210<br>6\u00a0-\u00a0350G" in md and "[키워드] 비전 소프트웨어" in md and "후보만" not in md
     planreport.save(store, tid, {"goals": "A\nB", "expected": ["C"]})
     md = planreport.build_markdown(store, tid)
     assert "- A" in md and "- C" in md and "휴머노이드 동향 조사" not in md

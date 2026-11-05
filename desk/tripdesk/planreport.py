@@ -57,6 +57,19 @@ def _cell(s: str) -> str:
     return str(s or "").replace("|", "/").replace("\n", " ").strip()
 
 
+NB = "\u00a0"  # 줄바꿈 금지 공백: '4 - 523' 이 한 줄에 쓰이게
+
+
+def _loc(b: dict) -> str:
+    """'홀 - 부스' 한 줄. 부스 번호가 이미 홀로 시작하면(5-210) 홀을 겹쳐 쓰지 않는다."""
+    h, bo = (b.get("hall") or "").strip(), (b.get("booth") or "").strip()
+    if h and bo:
+        if bo.upper().startswith(h.upper()) and len(bo) > len(h) and bo[len(h)] in "-. ":  # '5-210' 처럼 홀과 구분자로 이어진 경우만 겹침 제거
+            bo = bo[len(h):].lstrip("-. ") or bo
+        return f"{h}{NB}-{NB}{bo}"
+    return h or bo or "미확인"
+
+
 def _fmt_day(d: str) -> str:
     try:
         y = date.fromisoformat(d)
@@ -92,21 +105,18 @@ def build_markdown(store: Store, tid: str) -> str:
     if not cs:
         L.append("선택한 업체가 아직 없어요.")
         return "\n".join(L) + "\n"
-    L += ["| 방문일 | 업체 | 분류 | 홀 · 부스 | 선별 사유 |", "|---|---|---|---|---|"]
+    L += ["| 업체 | 분류 | 홀 - 부스 | 선별 사유 |", "|---|---|---|---|"]
 
     def key(c):
-        ds = [b["day"] or 99 for b in c["booths"]]
-        return (min(ds), c["booths"][0]["hall"], c["name"])
+        return (c["booths"][0]["hall"] or "~", c["booths"][0]["booth"], c["name"])
 
     for c in sorted(cs, key=key):
-        bl = c["booths"]
-        day = "<br>".join(f"D{b['day']} {_fmt_day(days[b['day'] - 1])}" if b["day"] and b["day"] <= len(days) else "미정" for b in bl)
-        loc = "<br>".join(" · ".join(x for x in (b["hall"], b["booth"]) if x) or "미확인" for b in bl)
+        loc = "<br>".join(_loc(b) for b in c["booths"])
         why = _cell(c.get("reason") or (c.get("preNotes") or "").split("\n")[0])[:170]
         mark = " ✓" if c.get("source") == "ai" and c.get("verified") else ""
-        L.append(f"| {day} | **{_cell(c['name'])}**{mark} | {_cell(c.get('category') or '기타')} | {loc} | {why} |")
+        L.append(f"| **{_cell(c['name'])}**{mark} | {_cell(c.get('category') or '기타')} | {loc} | {why} |")
     ai = [c for c in cs if c.get("source") == "ai"]
-    notes = ["부스가 여러 곳인 업체는 한 줄에 부스를 나란히 적었고, 방문일은 부스별로 정했습니다."] if stops_n > len(cs) else []
+    notes = ["부스가 여러 곳인 업체는 홀 - 부스를 줄을 바꿔 모두 적었습니다."] if stops_n > len(cs) else []
     if ai:
         notes.append("✓ = 공식 사이트에서 이번 전시회 참가를 확인한 업체")
     if notes:
