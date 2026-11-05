@@ -392,7 +392,8 @@ function openKeywordPrompt() {
     auto: false,
     extraTop: (ctl) => h("div", { class: "row" },
       h("div", { class: "grow field" }, h("label", {}, "찾고 싶은 키워드 (저장돼요 · × 로 삭제)"), chips, kw),
-      h("div", { class: "field", style: "width:130px" }, h("label", {}, "업체 수"), count),
+      h("div", { class: "field", style: "width:150px" }, h("label", {}, "업체 수 상한"), count,
+        h("div", { class: "sub" }, `하루 10곳 기준 약 ${Math.min(Number(count.value), 10 * P.v.trip.days.length)}곳만 추려요`)),
       h("button", { class: "btn primary", style: "align-self:flex-end", onclick: () => { commit(); last = kws.join(", "); ctl.load(); } }, "프롬프트 만들기")),
     getPrompts: async () => {
       const r = await api("POST", `/trips/${P.tid}/prompt/exhibitors`, { keywords: kws.join(", "), count: Number(count.value) });
