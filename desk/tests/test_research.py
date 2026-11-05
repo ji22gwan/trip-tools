@@ -24,6 +24,7 @@ def test_keyword_prompt_has_keywords_rules_and_format():
     p = research.build_keyword_prompt(TRIP, ["휴머노이드", "welding robot"], 25, "https://sps.mesago.com/", ["Old Co"])
     assert "휴머노이드, welding robot" in p and "Never invent" in p and "SPS 2026" in p
     assert "Old Co" in p and "```json" in p and '"verified"' in p
+    assert "[글로벌]" in p and "[최근 이슈]" in p and "[행사]" in p and "last 12 months" in p
     assert "MUST EXCLUDE" in p and "official site" in p and "similar or closely related" in p
     with pytest.raises(research.ResearchError):
         research.build_keyword_prompt(TRIP, [])

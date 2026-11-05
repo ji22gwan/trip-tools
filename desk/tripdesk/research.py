@@ -7,6 +7,7 @@
 """
 import json
 import re
+from datetime import date
 import unicodedata
 import uuid
 
@@ -47,6 +48,7 @@ def build_keyword_prompt(trip: dict, keywords: list[str], count: int = 20, site_
     if exclude:
         skip = "\nAlready on my list (do not repeat these): " + "; ".join(exclude[:60]) + "\n"
     purpose = (trip.get("purpose") or "").strip()
+    today = date.today().isoformat()
     return f"""I am preparing a business visit to a trade fair. Find exhibitors of THIS edition that match my keywords.
 
 Trade fair: {trip['name']} ({year})
@@ -56,7 +58,11 @@ Official site (if known): {site_url or 'unknown'}
 Keywords: {kw}
 Why I am visiting (Korean, optional context): {purpose or '(not given)'}
 {skip}
-Task: use web search. Start from the official exhibitor directory / exhibitor search of this exact edition, then confirm with company pages or press releases. Give up to {count} companies that match the keywords, most relevant first.
+Task: use web search. Start from the official exhibitor directory / exhibitor search of this exact edition, then confirm with company pages or press releases. Give up to {count} companies, most relevant first. Do not return only literal keyword matches; build a varied list from these groups (roughly 50-60% from the first group, the rest spread over the others):
+  1. [키워드] companies matching or closely related to my keywords.
+  2. [글로벌] globally well-known companies in these fields (market leaders, major robot / automation / sensor / AI makers) that exhibit at this edition.
+  3. [최근 이슈] companies that made big news in the last 12 months (before {today}), in Korea or abroad: new products, large funding, acquisitions, partnerships, major deployments or controversies.
+  4. [행사] companies that run many events at this fair or have an important event there (keynotes, product launches, demos, conference talks, press events) according to the official programme or their own announcements.
 
 Rules:
 - If you cannot browse the web in this conversation, say so and stop. Do not answer from memory.
@@ -67,7 +73,7 @@ Rules:
 - "verified": must be true for every company you return (it was confirmed on the official site).
 - "sourceUrl": the official-site page where you saw the company listed for this edition (required for every company).
 - "category": a short Korean category name (at most 8 different categories overall, e.g. 휴머노이드, 협동로봇, 용접 자동화, 비전·센서). Use the same name for similar companies.
-- "reason": one Korean sentence on how the company relates to the keywords.
+- "reason": one Korean sentence, starting with the group label in brackets ([키워드], [글로벌], [최근 이슈] or [행사]), saying why this company is worth visiting; for [최근 이슈] and [행사] name the news or event briefly. A company can have several labels. Keep the variety of categories wide; do not fill the list with many near-identical companies.
 - "matched": which of my keywords it matched.
 
 Reply with ONLY one JSON object in a ```json code block and nothing else, so I can paste it into another tool:
