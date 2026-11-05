@@ -444,9 +444,10 @@ function confirmPackage() {
     const mark = () => { try { localStorage.setItem(flagKey(P.tid), "1"); } catch {} setTimeout(redraw, 200); };
     const zipBtn = h("button", { class: "btn", disabled: true, onclick: () => { download(`/trips/${P.tid}/package`); mark(); close(); } }, "ZIP 내려받기");
     const send = h("button", { class: "btn primary", disabled: true, onclick: async (e) => {
-      e.currentTarget.disabled = true;
-      const r = await guard(() => api("POST", `/trips/${P.tid}/package/upload`, {}));
-      if (r) { toast(`서버에 올렸어요 (${(r.size / 1024).toFixed(0)}KB). 폰에서 '서버에서 불러오기'를 누르세요.`); mark(); close(); } else e.currentTarget.disabled = false;
+      const btn = e.currentTarget; btn.disabled = true;
+      const t0 = Date.now(), tick = setInterval(() => { status.textContent = `서버에 올리는 중… ${Math.round((Date.now() - t0) / 1000)}초 (최대 약 2분 30초, 넘으면 자동으로 멈추고 이유를 알려 줘요)`; }, 500);
+      const r = await guard(() => api("POST", `/trips/${P.tid}/package/upload`, {})).finally(() => clearInterval(tick));
+      if (r) { toast(`서버에 올렸어요 (${(r.size / 1024).toFixed(0)}KB${r.uploadSec ? `, ${r.uploadSec}초` : ""}). 폰에서 '서버에서 불러오기'를 누르세요.`, 5000); mark(); close(); } else { btn.disabled = false; status.textContent = "올리지 못했어요. 위 안내를 확인해 주세요."; }
     } }, "폰으로 보내기 (서버)");
     api("GET", "/cloud").then((c) => { cloudReady = !!c.ready; refreshBtns(); status.textContent = c.ready ? "서버 보관함 사용 가능" : (c.hasToken ? "서버 보관함이 없어요. install-worker 를 다시 실행하면 만들어져요." : "서버 설치 기록을 찾지 못했어요. ZIP 으로 옮길 수 있어요."); }).catch(() => { status.textContent = "서버 상태를 확인하지 못했어요."; });
     m.append(h("div", { class: "msg" }, h("b", {}, "폰으로 보내는 방법"), h("ol", { style: "margin:6px 0 0;padding-left:18px;line-height:1.7" },

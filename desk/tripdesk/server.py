@@ -363,7 +363,7 @@ class Api:
         """패키지를 만들어 Worker 보관함에 올린다. 폰에서 '서버에서 불러오기'로 받는다."""
         name, data = package.build_package(self.store, m["tid"])
         res = cloud.upload_package(m["tid"], self.store.get_trip(m["tid"]).get("name", ""), data)
-        return {"ok": True, "size": len(data), "id": res.get("id", m["tid"])}
+        return {"ok": True, "size": len(data), "id": res.get("id", m["tid"]), "uploadSec": res.get("uploadSec"), "kbps": res.get("kbps")}
 
     # ---- 일간 데이터 ----
     @route("POST", r"/api/trips/(?P<tid>[^/]+)/days/import")

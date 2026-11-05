@@ -55,22 +55,47 @@ def upload_package(trip_id: str, trip_name: str, data: bytes) -> dict:
         raise StoreError("번역 서버 설치 기록을 찾지 못했어요. 이 컴퓨터에서 install-worker 를 실행했는지 확인해 주세요. (ZIP 파일로 옮기는 방법은 그대로 쓸 수 있어요.)")
     if not c["storage"]:
         raise StoreError("패키지 보관함(KV)이 만들어지지 않았어요. install-worker 를 다시 실행해 보세요. 그동안은 ZIP 파일로 옮길 수 있어요.")
-    req = urllib.request.Request(f"{c['workerUrl']}/packages/{trip_id}", data=data, method="PUT",
-                                 headers={"Authorization": f"Bearer {c['token']}", "Content-Type": "application/zip", "X-Trip-Name": urllib.parse.quote(trip_name),
-                                          "User-Agent": "TripDesk/1"})
+    import http.client
+    import time
+    u = urllib.parse.urlparse(f"{c['workerUrl']}/packages/{urllib.parse.quote(trip_id)}")
+    conn_cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+    deadline = 150  # 초. 느린 회선에서 몇 분씩 멈춘 것처럼 보이지 않게 끝을 정한다
+    t0 = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
+        conn = conn_cls(u.netloc, timeout=30)
+        conn.putrequest("PUT", u.path)
+        for k, v in {"Authorization": f"Bearer {c['token']}", "Content-Type": "application/zip", "Content-Length": str(len(data)),
+                     "X-Trip-Name": urllib.parse.quote(trip_name), "User-Agent": "TripDesk/1"}.items():
+            conn.putheader(k, v)
+        conn.endheaders()
+        sent = 0
+        while sent < len(data):
+            if time.time() - t0 > deadline:
+                kbs = sent / 1024 / max(time.time() - t0, 0.1)
+                raise StoreError(f"올리는 속도가 너무 느려요({kbs:.0f}KB/s, {sent // 1024}/{len(data) // 1024}KB 전송 후 {deadline}초 중단). 회사망·VPN·프록시가 업로드를 막거나 느리게 할 수 있어요. 다른 네트워크(휴대폰 핫스팟)에서 해 보거나 ZIP 으로 옮겨 주세요.")
+            conn.send(data[sent:sent + 65536])
+            sent += 65536
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8")
+        if resp.status >= 400:
+            try:
+                err = json.loads(body).get("error", "")
+            except ValueError:
+                err = ""
+            msg = {"unauthorized": "토큰이 맞지 않아요(서버가 거절).", "too_large": "패키지가 너무 커요(24MB 초과). 지도 파일을 줄이거나 ZIP 으로 옮겨 주세요.",
+                   "storage_not_configured": "서버에 패키지 보관함이 없어요. install-worker 를 다시 실행해 주세요."}.get(err, f"서버 응답 오류({resp.status})")
+            raise StoreError(msg)
+        out = json.loads(body)
+        out["uploadSec"] = round(time.time() - t0, 1)
+        out["kbps"] = round(len(data) / 1024 / max(time.time() - t0, 0.1))
+        return out
+    except (OSError, http.client.HTTPException) as e:
+        raise StoreError(f"서버에 연결하지 못했어요: {getattr(e, 'reason', e)} ({round(time.time() - t0)}초 만에 실패)") from None
+    finally:
         try:
-            err = json.loads(e.read().decode("utf-8")).get("error", "")
-        except ValueError:
-            err = ""
-        msg = {"unauthorized": "토큰이 맞지 않아요(서버가 거절).", "too_large": "패키지가 너무 커요(24MB 초과). 지도 파일을 줄이거나 ZIP 으로 옮겨 주세요.",
-               "storage_not_configured": "서버에 패키지 보관함이 없어요. install-worker 를 다시 실행해 주세요."}.get(err, f"서버 응답 오류({e.code})")
-        raise StoreError(msg) from None
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise StoreError(f"서버에 연결하지 못했어요: {getattr(e, 'reason', e)}") from None
+            conn.close()
+        except Exception:
+            pass
 
 
 def _call(method: str, path: str) -> dict:

@@ -322,6 +322,9 @@ def test_cloud_package_list_and_delete(tmp_path, monkeypatch):
             b = json.dumps(obj).encode(); self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         def do_GET(self):
             state["auth"].append(self.headers.get("Authorization")); self._send({"packages": state["pk"]})
+        def do_PUT(self):
+            n = int(self.headers["Content-Length"]); state["put"] = (self.path, len(self.rfile.read(n)), self.headers.get("X-Trip-Name"))
+            self._send({"ok": True, "id": self.path.rsplit("/", 1)[1]})
         def do_DELETE(self):
             i = self.path.rsplit("/", 1)[1]; state["pk"] = [p for p in state["pk"] if p["id"] != i]; self._send({"ok": True})
     srv = HTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -329,6 +332,8 @@ def test_cloud_package_list_and_delete(tmp_path, monkeypatch):
     (home / "install.env").write_text(f'WORKER_URL="http://127.0.0.1:{srv.server_port}"\nTOKEN="tok"\nKV_ID="x"\n')
     monkeypatch.setenv("TRIP_TOOLS_HOME", str(home)); monkeypatch.setenv("TRIPDESK_HOME", str(tmp_path / "td"))
     assert [p["id"] for p in cloud.list_packages()] == ["t1", "t2"] and state["auth"][0] == "Bearer tok"
+    r = cloud.upload_package("t9", "한글 이름", b"PK" + b"x" * 300000)
+    assert r["ok"] and r["id"] == "t9" and state["put"][1] == 300002 and r["uploadSec"] >= 0 and r["kbps"] > 0
     cloud.delete_package("t1")
     assert [p["id"] for p in cloud.list_packages()] == ["t2"]
     srv.shutdown()
