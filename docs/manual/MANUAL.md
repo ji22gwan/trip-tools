@@ -347,6 +347,32 @@ Trip Desk 아이콘을 누르면 앱 창으로 열려요(터미널 없음). 왼�
 > 총평을 고치거나 AI 총평을 다시 받아도 PPT용 자료 내용은 지워지지 않아요.
 > 박람회 **배치도 이미지**는 이 ZIP 에 들어 있지 않아요. PPT 에 넣으려면 따로 함께 주세요.
 
+### 4-5. PPT 로 만들기 (완성 화면 예시)
+
+4-4 에서 받은 ZIP 을 AI 에게 첨부하고 [PPT 요청 프롬프트](ppt_prompt.md)를 함께 주면 아래와 같은 PPT 가 나와요. (가상 데이터로 만든 예시: [sample_report.pptx](sample_report.pptx), 입력으로 쓴 ZIP: [sample_ppt_package.zip](sample_ppt_package.zip))
+
+**1장 — 목적 · 일정 및 참석자 · 박람회 개요**
+
+![1장](img/ppt-01-overview.png)
+
+**2장 — 주요 확인 사항 (표)**
+
+![2장](img/ppt-02-checks.png)
+
+**3장 — 시사점 및 결론**
+
+![3장](img/ppt-03-conclusion.png)
+
+**별첨 — 업체별 1장 (사진 + 시사점 및 활용처)**
+
+![별첨 1](img/ppt-05-appendix-alpha.png)
+
+![별첨 2](img/ppt-04-appendix-eco.png)
+
+- 별첨 사진 속 글씨가 깨져 보이는 건 매뉴얼용 **가상 이미지**라서예요. 실제로는 폰에서 찍은 사진이 들어가요.
+- 배치도 자리는 비어 있어요. 배치도 이미지를 같이 주면 그 자리에 들어가요.
+- 위 PPT 는 이 저장소의 `docs/manual/make_ppt_sample.py` 로 만든 **형식 예시**예요. 실제 출력은 AI 가 같은 구성으로 만들어 주며, 글꼴·간격은 약간 다를 수 있어요. 최종 파일은 PowerPoint 에서 열어 한 번 확인해 주세요.
+
 ---
 
 ## 5. 막힐 때 / 알아둘 한계
