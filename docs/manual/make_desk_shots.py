@@ -73,10 +73,15 @@ def main():
         call("PUT", f"/trips/{tid}/glossary", D.GLOSSARY)
         comps = [dict(id=c[0], name=c[1], category=c[2], hall=c[3], booth=c[4], day=c[5], picked=c[0] in D.PICKED, source=c[6], verified=c[7], reason=c[8], questions=c[9],
                       sourceUrl="https://example.com/exhibitors/" + c[0][2:] if c[6] == "ai" else "") for c in D.COMPANIES]
+        for c in comps:  # 부스가 여러 곳인 업체(체크박스는 1개, 일정 배분은 부스별)
+            if c["id"] == "c-eco":
+                c["booths"] = [dict(hall="3A", booth="3A07", day=2), dict(hall="4", booth="4B18", day=3)]
+            if c["id"] == "c-belta":
+                c["booths"] = [dict(hall="1", booth="1B05", day=1), dict(hall="2", booth="2D40", day=2)]
         call("PUT", f"/trips/{tid}/companies", comps)
         go(f"prep/{tid}")
         shot("desk-07-candidates", full=True)
-        pg.locator("button[aria-label='알파로보틱스 편집']").click(); pg.wait_for_timeout(400)
+        pg.locator("button[aria-label='에코웰딩 편집']").click(); pg.wait_for_timeout(400)
         shot("desk-08-company-edit", clip_modal=True)
         click("저장") if False else pg.locator(".modalbg").evaluate("e=>e.remove()")
         pg.locator("button:has-text('일정 배분')").first.click(); pg.wait_for_timeout(600)

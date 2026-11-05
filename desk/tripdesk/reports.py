@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import daily, pptdata
+from . import booths, daily, pptdata
 from .store import Store, StoreError
 
 MARK_BRACES = re.compile(r"\{\{(.*?)\}\}", re.S)
@@ -17,7 +17,14 @@ def plain(text: str) -> str:
 
 
 def _plan(store, tid) -> list[dict]:
-    return [c for c in store.get_companies(tid) if c.get("picked") is not False]
+    """계획표: 부스 하나가 한 줄(방문 지점)이다. 부스가 여러 곳인 업체는 줄이 여러 개가 된다."""
+    out = []
+    for c in store.get_companies(tid):
+        if c.get("picked") is False:
+            continue
+        for x in booths.stops(c):
+            out.append(dict(c, id=x["id"], companyId=c["id"], hall=x["hall"], booth=x["booth"], day=x["day"], multi=len(c["booths"]) > 1))
+    return out
 
 
 def build_day(store: Store, tid: str, n: int) -> dict:
@@ -52,8 +59,9 @@ def build_day(store: Store, tid: str, n: int) -> dict:
     # 내일 계획: 계획표(일차 배정)에서 가져온다. 사용자가 고친 문장이 있으면 그것을 쓴다.
     visited_ids = {c["id"] for c in v.get("companies", []) if c.get("visited")}
     plan = _plan(store, tid)
-    next_up = [c["name"] for c in plan if c.get("day") == n + 1]
-    missed = [c["name"] for c in plan if c.get("day") == n and c["id"] not in visited_ids]
+    tag = lambda c: f"{c['name']}({c['booth'] or c['hall']})" if c.get("multi") else c["name"]
+    next_up = [tag(c) for c in plan if c.get("day") == n + 1]
+    missed = [tag(c) for c in plan if c.get("day") == n and c["id"] not in visited_ids]
     bits = []
     if next_up:
         bits.append("방문 예정: " + ", ".join(next_up))
@@ -89,12 +97,16 @@ def build_final(store: Store, tid: str) -> dict:
     merged: dict[str, dict] = {}
     for d in days:
         for c in d["companies"]:
-            m = merged.setdefault(c["id"], {"id": c["id"], "name": c["name"], "category": c["category"], "hall": c["hall"],
-                                           "booth": c["booth"], "addedOnSite": c["addedOnSite"], "visits": []})
+            bid = booths.base_id(c["id"])  # 같은 업체의 다른 부스 방문은 한 업체로 합친다
+            m = merged.setdefault(bid, {"id": bid, "name": c["name"], "category": c["category"], "hall": c["hall"],
+                                       "booth": c["booth"], "addedOnSite": c["addedOnSite"], "visits": []})
+            if c["booth"] and c["booth"] not in m["booth"].split(", "):
+                m["hall"] = ", ".join(dict.fromkeys(x for x in (m["hall"] + ", " + c["hall"]).split(", ") if x))
+                m["booth"] = ", ".join(x for x in (m["booth"], c["booth"]) if x)
             m["visits"].append({"day": d["day"], "date": d["date"], "points": c["points"], "memos": c["memos"],
                                 "recordings": c["recordings"], "photos": len(c["photos"])})
     visited = {i for i, m in merged.items() if any(x for x in m["visits"])}
-    not_visited = [c["name"] for c in _plan(store, tid) if c["id"] not in visited]
+    not_visited = list(dict.fromkeys(c["name"] for c in _plan(store, tid) if booths.base_id(c["id"]) not in visited))
     final = daily._read(store._dir(tid) / "final.json", {})
     return {
         "tripName": trip["name"], "venue": trip.get("venue", ""), "purpose": trip.get("purpose", ""), "dates": trip["days"],

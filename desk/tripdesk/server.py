@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import cloud, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
+from . import booths, cloud, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
 from .store import Store, StoreError
 
 WEB = Path(__file__).parent / "web"
@@ -243,15 +243,14 @@ class Api:
             if not str(c.get("name", "")).strip() or not c.get("id"):
                 continue
             q_ = c.get("questions") or []
-            clean.append({
+            clean.append(booths.norm({
                 "id": str(c["id"]), "name": str(c["name"]).strip(), "category": str(c.get("category") or "기타").strip(),
-                "hall": str(c.get("hall") or "").strip(), "booth": str(c.get("booth") or "").strip(),
-                "day": c["day"] if isinstance(c.get("day"), int) else None,
+                "booths": booths.clean(c.get("booths") or [{"hall": c.get("hall"), "booth": c.get("booth"), "day": c.get("day")}]),
                 "preNotes": str(c.get("preNotes") or ""), "questions": [str(x) for x in q_ if str(x).strip()],
                 "picked": c.get("picked") is not False, "source": str(c.get("source") or "")[:10],
                 "reason": str(c.get("reason") or "")[:300], "sourceUrl": str(c.get("sourceUrl") or "")[:500],
                 "verified": c.get("verified") is True, "keywords": [str(k)[:40] for k in (c.get("keywords") or [])][:8],
-            })
+            }))
         self.store.set_companies(m["tid"], clean)
         return self.trip_view(m["tid"])
 

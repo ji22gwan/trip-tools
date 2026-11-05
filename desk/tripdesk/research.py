@@ -11,6 +11,8 @@ from datetime import date
 import unicodedata
 import uuid
 
+from . import booths
+
 MAX_ITEMS = 150
 LEGAL = {"gmbh", "ag", "kg", "se", "co", "ltd", "llc", "inc", "corp", "corporation", "bv", "sa", "srl", "spa", "oy", "ab",
          "as", "kk", "limited", "company", "mbh", "ug", "sas", "plc", "pte"}
@@ -68,6 +70,7 @@ Rules:
 - If you cannot browse the web in this conversation, say so and stop. Do not answer from memory.
 - "up to {count}" is a maximum, not a target: if fewer genuinely match, return fewer. If the full list would not fit in one reply, return fewer complete entries rather than cutting the JSON off.
 - Never invent companies, hall numbers or booth numbers. Leave "hall" and "booth" empty when you did not see them in a source.
+- If a company has booths in several places (several halls or several stands), return it ONCE and list every booth you confirmed in "booths", one entry per booth: {{"hall":"5","booth":"5-210"}}. Do not repeat the company.
 - MUST EXCLUDE any company whose participation in this edition you could not confirm on the official site (the official exhibitor directory / exhibitor list of this exact edition). Do not list unconfirmed companies at all, even if they look relevant.
 - INCLUDE companies that are similar or closely related to my keywords even when they do not fall perfectly into the keyword's category (adjacent technology, component or system suppliers). In "reason" say how it is similar, and in "matched" give the closest keyword. Rank exact matches first.
 - "verified": must be true for every company you return (it was confirmed on the official site).
@@ -77,7 +80,7 @@ Rules:
 - "matched": which of my keywords it matched.
 
 Reply with ONLY one JSON object in a ```json code block and nothing else, so I can paste it into another tool:
-{{"companies":[{{"name":"","category":"","hall":"","booth":"","reason":"","matched":[""],"sourceUrl":"","verified":true}}],"notes":"Korean, 1-3 sentences: sources used and what you could not confirm"}}"""
+{{"companies":[{{"name":"","category":"","booths":[{{"hall":"","booth":""}}],"reason":"","matched":[""],"sourceUrl":"","verified":true}}],"notes":"Korean, 1-3 sentences: sources used and what you could not confirm"}}"""
 
 
 def extract_json(text: str) -> dict:
@@ -110,8 +113,7 @@ def sanitize(data: dict) -> tuple[list[dict], str]:
         items.append({
             "name": name,
             "category": _s(c.get("category"), 30) or "기타",
-            "hall": _s(c.get("hall"), 12),
-            "booth": _s(c.get("booth"), 12),
+            "booths": booths.clean(c["booths"]) if isinstance(c.get("booths"), list) and c["booths"] else booths.parse(c.get("hall"), c.get("booth")),
             "reason": _s(c.get("reason"), 300),
             "matched": [_s(k, 40) for k in matched if _s(k, 40)][:6],
             "sourceUrl": url if ok_url else "",
@@ -132,13 +134,12 @@ def add_candidates(existing: list[dict], items: list[dict], keywords: list[str])
         kws = list(dict.fromkeys(it.get("matched") or keywords))
         if prev:
             prev["keywords"] = list(dict.fromkeys((prev.get("keywords") or []) + kws))
-            if not prev.get("hall") and it["hall"]:
-                prev["hall"], prev["booth"] = it["hall"], it["booth"]
+            booths.merge_into(prev, it["booths"])
             skipped += 1
             continue
         c = {
-            "id": "c-" + uuid.uuid4().hex[:8], "name": it["name"], "category": it["category"], "hall": it["hall"],
-            "booth": it["booth"], "day": None, "preNotes": "", "questions": [], "picked": False, "source": "ai",
+            "id": "c-" + uuid.uuid4().hex[:8], "name": it["name"], "category": it["category"], "booths": it["booths"],
+            "day": None, "preNotes": "", "questions": [], "picked": False, "source": "ai",
             "reason": it["reason"], "sourceUrl": it["sourceUrl"], "verified": it["verified"], "keywords": kws,
         }
         existing.append(c)

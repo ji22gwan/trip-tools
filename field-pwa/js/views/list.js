@@ -2,7 +2,7 @@
 import { esc, icons } from "../ui.js";
 import { companiesForDay, groupByCategory, isVisited, setVisited } from "../model.js";
 import * as db from "../db.js";
-import { headerHtml, bindHeader, openAddCompany, openSession } from "./shared.js";
+import { headerHtml, bindHeader, openAddCompany, openSession, dupBadge } from "./shared.js";
 
 let filter = "today";
 
@@ -19,10 +19,11 @@ export async function renderList(root, ctx) {
     const visited = isVisited(c, day);
     const place = [c.hall && `홀 ${c.hall}`, c.booth && `부스 ${c.booth}`].filter(Boolean).join(" · ");
     const note = c.addedOnSite ? "현장 추가" : c.preNotes ? c.preNotes.split("\n")[0] : "";
+    const dupHtml = dupBadge(c, companies);
     return `
       <div class="item ${visited ? "done" : ""}" data-open="${c.id}" role="button" tabindex="0">
         <button class="check ${visited ? "on" : ""}" data-toggle="${c.id}" aria-label="${esc(c.name)} 방문 ${visited ? "취소" : "체크"}" aria-pressed="${visited}">${visited ? `<span style="color:#fff">${icons.check(18)}</span>` : ""}</button>
-        <div class="item-main"><div class="item-name">${esc(c.name)}</div><div class="item-sub">${esc([place, note].filter(Boolean).join(" · ") || "정보 없음")}</div></div>
+        <div class="item-main"><div class="item-name">${esc(c.name)}${dupHtml.pill}</div><div class="item-sub">${esc([place, note].filter(Boolean).join(" · ") || "정보 없음")}</div>${dupHtml.line}</div>
         <span class="muted" aria-hidden="true">›</span>
       </div>`;
   };

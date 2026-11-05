@@ -119,7 +119,7 @@ function showHall(root, m, day) {
   const el = document.createElement("div");
   el.className = "hall-sheet";
   el.innerHTML = `<div class="hs-h"><b>홀 ${esc(m.key)}</b><span>${m.done}/${m.companies.length} 완료</span><button aria-label="닫기">×</button></div>` +
-    m.companies.map((c) => `<div class="hs-r${isVisited(c, day) ? " done" : ""}">${esc(c.name)}<small>${esc(c.booth || "")}</small></div>`).join("");
+    m.companies.map((c) => `<div class="hs-r${isVisited(c, day) ? " done" : ""}">${esc(c.name)}<small>${esc(c.booth || "")}${c.dup ? ` · ⚠ 중복 ${c.dup.i}/${c.dup.n}` : ""}</small></div>`).join("");
   el.querySelector("button").onclick = () => el.remove();
   root.querySelector(".map-wrap").append(el);
 }

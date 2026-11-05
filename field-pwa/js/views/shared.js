@@ -230,6 +230,20 @@ const md = (x) => (x ? `${Number(x.slice(5, 7))}/${Number(x.slice(8, 10))}` : ""
 const money = (x) => (x.amount == null ? "" : `${Number(x.amount).toLocaleString()} ${esc(x.currency)}`);
 const nights = (a, b) => (a && b ? Math.round((new Date(b) - new Date(a)) / 864e5) : 0);
 
+// 같은 업체의 다른 부스(중복)를 한눈에 알아보게 하는 표시. 다른 부스에서 이미 방문했으면 건너뛰어도 된다고 알려 준다.
+export function dupBadge(c, companies) {
+  if (!c.dup) return { pill: "", line: "", skip: false };
+  const byId = new Map(companies.map((x) => [x.id, x]));
+  const others = c.dup.others.map((o) => ({ ...o, done: (byId.get(o.id)?.visits || []).length > 0 }));
+  const skip = others.some((o) => o.done);
+  const where = others.map((o) => `${o.booth || o.hall || "?"}${o.day ? ` (Day ${o.day})` : ""}${o.done ? " ✓" : ""}`).join(", ");
+  return {
+    skip,
+    pill: ` <span class="pill dup-pill">중복 ${c.dup.i}/${c.dup.n}</span>`,
+    line: `<div class="item-sub dup-line">${skip ? "다른 부스를 이미 방문했어요 · 바쁘면 건너뛰어도 돼요" : "같은 업체의 다른 부스"}: ${esc(where)}</div>`,
+  };
+}
+
 export function openBookings(trip) {
   const { flights = [], hotels = [] } = trip.bookings || {};
   const map = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;

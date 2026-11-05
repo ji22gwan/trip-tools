@@ -23,10 +23,16 @@ async function saveCompanies(list) {
   P.app.refreshSide();
 }
 
+// 부스가 여러 곳인 업체는 booths 에 담겨 있다. 체크(선택)는 업체 단위, 일정 배분은 부스 단위다.
+const bs = (c) => (c.booths?.length ? c.booths : [{ hall: c.hall || "", booth: c.booth || "", day: c.day || null }]);
+const bLabel = (b) => [b.hall, b.booth].filter(Boolean).join(" · ") || "위치 미확인";
+const setBoothDay = (c, i, val) => P.v.companies.map((x) => (x.id === c.id ? { ...x, picked: val ? true : x.picked, booths: bs(x).map((b, j) => (j === i ? { ...b, day: val } : b)) } : x));
+
 function stats() {
   const cs = P.v.companies;
   const picked = cs.filter((c) => c.picked !== false);
-  return { all: cs.length, picked: picked.length, dated: picked.filter((c) => c.day).length, maps: P.v.maps.length, unverified: picked.filter((c) => c.source === "ai" && !c.verified).length };
+  const stops = picked.flatMap(bs);
+  return { all: cs.length, picked: picked.length, stops: stops.length, dated: stops.filter((b) => b.day).length, maps: P.v.maps.length, unverified: picked.filter((c) => c.source === "ai" && !c.verified).length };
 }
 
 function draw() {
@@ -35,7 +41,7 @@ function draw() {
   const steps = [
     ["출장 정보", true],
     ["후보 수집", s.all > 0],
-    ["후보·일정", s.picked > 0 && s.dated === s.picked],
+    ["후보·일정", s.picked > 0 && s.dated === s.stops],
     ["패키지 확정", getFlag(P.tid)],
   ];
   const nowIdx = steps.findIndex((x) => !x[1]);
@@ -49,7 +55,7 @@ function draw() {
     h("div", { class: "kpis" },
       kpi("후보 업체", s.all, "AI·CSV·직접 추가 합계"),
       kpi("선택한 업체", s.picked, s.unverified ? `참가 미확인 ${s.unverified}곳` : "폰으로 보낼 업체", true),
-      kpi("일정 배정", `${s.dated}/${s.picked}`, trip.days.length + "일 일정"),
+      kpi("일정 배정", `${s.dated}/${s.stops}`, s.stops > s.picked ? `부스 기준 · 업체 ${s.picked}곳` : trip.days.length + "일 일정"),
       kpi("전시장 지도", s.maps, s.maps ? "대표 1장을 폰에 보내요" : "아직 없어요")),
     h("div", { class: "cols" }, leftCol(s), panel(s)),
   );
@@ -75,7 +81,7 @@ function leftCol(s) {
   const checks = [
     ["공식 사이트·지도 확보", s.maps > 0],
     ["후보 업체 수집", s.all > 0],
-    ["후보 선별·일정 배분", s.picked > 0 && s.dated === s.picked],
+    ["후보 선별·일정 배분", s.picked > 0 && s.dated === s.stops],
     ["패키지 확정 · 폰으로 보내기", getFlag(P.tid)],
   ];
   const now = checks.findIndex((c) => !c[1]);
@@ -104,14 +110,14 @@ function panel(s) {
 
 function dayLabel(d) { return d ? "Day " + d : "미배정"; }
 
-function dayPicker(c) {
+function dayPicker(c, i = 0) {
   const { days } = P.v.trip;
-  const sel = h("select", { class: "dayb" + (c.day ? " set" : ""), "aria-label": c.name + " 방문일", onchange: () => {
+  const cur = bs(c)[i].day;
+  const sel = h("select", { class: "dayb" + (cur ? " set" : ""), "aria-label": `${c.name} ${bs(c).length > 1 ? bLabel(bs(c)[i]) + " " : ""}방문일`, onchange: () => {
     const val = sel.value ? Number(sel.value) : null;
-    const list = P.v.companies.map((x) => (x.id === c.id ? { ...x, day: val, picked: val ? true : x.picked } : x));
-    guard(() => saveCompanies(list));
-  } }, h("option", { value: "" }, "미배정"), ...days.map((d, i) => h("option", { value: i + 1 }, `Day ${i + 1}`)));
-  sel.value = c.day || "";
+    guard(() => saveCompanies(setBoothDay(c, i, val)));
+  } }, h("option", { value: "" }, "미배정"), ...days.map((d, k) => h("option", { value: k + 1 }, `Day ${k + 1}`)));
+  sel.value = cur || "";
   return sel;
 }
 
@@ -139,14 +145,15 @@ function candsTab(s) {
     const cb = h("button", { class: "cb" + (on ? " on" : ""), role: "checkbox", "aria-checked": String(on), "aria-label": c.name + " 선택", onclick: () => {
       guard(() => saveCompanies(P.v.companies.map((x) => (x.id === c.id ? { ...x, picked: !on } : x))));
     } }, on ? "✓" : "");
-    const loc = c.hall || c.booth ? `${c.hall || "?"} · ${c.booth || "?"}` : "미확인";
+    const bl = bs(c), multi = bl.length > 1;
+    const locEl = h("div", { class: bl.some((b) => b.hall || b.booth) ? "" : "sub" }, ...bl.map((b) => h("div", {}, b.hall || b.booth ? `${b.hall || "?"} · ${b.booth || "?"}` : "미확인")));
     const why = [c.reason || c.preNotes?.split("\n")[0] || ""];
     return h("div", { class: "tr" + (on ? "" : " off") }, cb,
-      h("div", { class: "nm" }, c.name,
+      h("div", { class: "nm" }, c.name, multi ? h("span", { class: "tag dup" }, `부스 ${bl.length}곳`) : null,
         c.source === "ai" ? (c.verified ? h("span", { class: "tag green" }, "참가 확인") : h("span", { class: "tag" }, "AI 추정")) : c.source === "csv" ? null : h("span", { class: "tag" }, "내가 추가")),
-      h("div", {}, c.category || "기타"), h("div", { class: c.hall || c.booth ? "" : "sub" }, loc),
+      h("div", {}, c.category || "기타"), locEl,
       h("div", { class: "why" }, why[0], c.sourceUrl ? h("span", {}, " ", h("a", { href: c.sourceUrl, target: "_blank", rel: "noopener noreferrer" }, "출처")) : null),
-      dayPicker(c),
+      h("div", { style: "display:flex;flex-direction:column;gap:4px" }, ...bl.map((_, i) => dayPicker(c, i))),
       h("button", { class: "btn sm ghost", "aria-label": c.name + " 편집", onclick: () => openCompanyEditor(c), style: "padding:0" }, "✎"));
   });
   const ids = new Set(shown.map((c) => c.id));
@@ -166,15 +173,15 @@ function candsTab(s) {
     h("button", { class: "btn sm", disabled: !selN, onclick: () => setAll(false) }, "전체 해제"),
     h("button", { class: "btn sm danger", onclick: openDelete }, "삭제…"),
     h("span", { class: "sub" }, `보이는 ${shown.length}곳 중 ${selN}곳 선택`));
-  const perDay = P.v.trip.days.map((_, i) => cs.filter((c) => c.picked !== false && c.day === i + 1).length);
+  const perDay = P.v.trip.days.map((_, i) => cs.filter((c) => c.picked !== false).flatMap(bs).filter((b) => b.day === i + 1).length);
   return h("div", { style: "display:flex;flex-direction:column" },
     h("div", { class: "chips" }, ...chips.map(([name, n]) => h("button", { class: "chip" + (P.cat === name ? " on" : ""), onclick: () => { P.cat = name; redraw(); } }, `${name} ${n}`)),
       h("input", { type: "search", placeholder: "이름·이유 검색", value: P.q, style: "width:180px;height:34px;margin-left:auto", oninput: (e) => { P.q = e.target.value; const pos = e.target.selectionStart; redraw(); const el = P.root.querySelector('input[type=search]'); el.focus(); el.setSelectionRange(pos, pos); } })),
     bulk,
     h("div", { class: "table" }, header, ...(rows.length ? rows : [h("div", { class: "empty" }, "조건에 맞는 업체가 없어요.")])),
     h("div", { class: "foot" },
-      h("div", {}, h("b", {}, `선택 ${s.picked}곳` + perDay.map((n, i) => (n ? ` · Day ${i + 1} ${n}곳` : "")).join("")),
-        h("div", { class: "sub" }, s.picked - s.dated ? `일정 미배정 ${s.picked - s.dated}곳 · '일정 배분' 탭에서 한 번에 나눌 수 있어요` : "모든 선택 업체에 방문일이 있어요")),
+      h("div", {}, h("b", {}, `선택 ${s.picked}곳` + (s.stops > s.picked ? ` (방문 지점 ${s.stops}곳)` : "") + perDay.map((n, i) => (n ? ` · Day ${i + 1} ${n}곳` : "")).join("")),
+        h("div", { class: "sub" }, s.stops - s.dated ? `일정 미배정 ${s.stops - s.dated}곳 · '일정 배분' 탭에서 한 번에 나눌 수 있어요` : "모든 선택 업체에 방문일이 있어요")),
       h("div", { class: "row" },
         h("button", { class: "btn", onclick: () => openCompanyEditor(null) }, "+ 업체 직접 추가"), csvButton(),
         h("button", { class: "btn primary", onclick: confirmPackage }, "패키지 확정 · 폰으로 보내기"))));
@@ -203,37 +210,47 @@ function planTab(s) {
   const { days } = P.v.trip;
   const picked = P.v.companies.filter((c) => c.picked !== false);
   if (!picked.length) return h("div", { class: "empty" }, h("b", {}, "선택한 업체가 없어요"), h("div", {}, "'후보 업체' 탭에서 방문할 업체를 체크하세요."));
-  const move = (c, to) => guard(() => saveCompanies(P.v.companies.map((x) => (x.id === c.id ? { ...x, day: to } : x))));
-  const card = (c) => {
-    const d = c.day || 0;
-    return h("div", { class: "card2" }, h("div", { class: "t" }, c.name), h("div", { class: "m" }, `${c.category || "기타"} · ${c.hall || c.booth ? `${c.hall || "?"} ${c.booth || ""}` : "위치 미확인"}`),
+  // 부스 하나 = 카드 하나. 부스가 여러 곳인 업체는 카드가 여러 장이라 '선택한 업체 수'보다 카드가 더 많을 수 있다.
+  const stops = picked.flatMap((c) => bs(c).map((b, i) => ({ c, b, i, n: bs(c).length })));
+  const move = (x, to) => guard(() => saveCompanies(setBoothDay(x.c, x.i, to)));
+  const card = (x) => {
+    const d = x.b.day || 0;
+    const others = bs(x.c).map((b, j) => ({ b, j })).filter((o) => o.j !== x.i);
+    return h("div", { class: "card2" + (x.n > 1 ? " dupc" : "") }, h("div", { class: "t" }, x.c.name),
+      x.n > 1 ? h("div", { class: "dupnote" }, h("b", {}, `⚠ 중복 업체 ${x.i + 1}/${x.n}`), ` · 다른 부스: ${others.map((o) => `${o.b.booth || o.b.hall || "?"}${o.b.day ? ` (Day ${o.b.day})` : ""}`).join(", ")}`) : null,
+      h("div", { class: "m" }, `${x.c.category || "기타"} · ${bLabel(x.b)}`),
       h("div", { class: "mv" },
-        h("button", { "aria-label": "앞 일차로", disabled: d <= 0, onclick: () => move(c, d - 1 || null) }, "◀"),
-        h("button", { "aria-label": "다음 일차로", disabled: d >= days.length, onclick: () => move(c, d + 1) }, "▶")));
+        h("button", { "aria-label": "앞 일차로", disabled: d <= 0, onclick: () => move(x, d - 1 || null) }, "◀"),
+        h("button", { "aria-label": "다음 일차로", disabled: d >= days.length, onclick: () => move(x, d + 1) }, "▶")));
   };
   const col = (title, list) => h("div", { class: "col" }, h("h4", {}, title, h("span", {}, list.length + "곳")), ...list.map(card));
   return h("div", { style: "display:flex;flex-direction:column" },
     h("div", { class: "pad", style: "padding-bottom:0" }, h("div", { class: "row" },
       h("button", { class: "btn primary sm", onclick: autoAssign }, "홀 기준으로 자동 배분"),
-      h("span", { class: "sub" }, "아직 일차가 없는 업체만 같은 홀끼리 묶어 나눠요. 이미 정한 일정은 그대로 둬요."))),
-    h("div", { class: "board" }, col("미배정", picked.filter((c) => !c.day)), ...days.map((d, i) => col(`Day ${i + 1} · ${d.slice(5)}`, picked.filter((c) => c.day === i + 1)))));
+      h("span", { class: "sub" }, `아직 일차가 없는 곳만 같은 홀끼리 묶어 나눠요(첫날은 둘러볼 시간을 위해 조금 가볍게). 이미 정한 일정은 그대로 둬요.${stops.length > picked.length ? ` 선택 업체 ${picked.length}곳 중 부스가 여럿인 업체가 있어 방문 지점은 ${stops.length}곳이에요(⚠ 표시).` : ""}`))),
+    h("div", { class: "board" }, col("미배정", stops.filter((x) => !x.b.day)), ...days.map((d, i) => col(`Day ${i + 1} · ${d.slice(5)}`, stops.filter((x) => x.b.day === i + 1)))));
 }
 
 function autoAssign() {
   const n = P.v.trip.days.length;
-  const todo = P.v.companies.filter((c) => c.picked !== false && !c.day).sort((a, b) => (a.hall || "~").localeCompare(b.hall || "~") || (a.booth || "").localeCompare(b.booth || "", undefined, { numeric: true }));
+  const all = P.v.companies.filter((c) => c.picked !== false).flatMap((c) => bs(c).map((b, i) => ({ c, b, i })));
+  const todo = all.filter((x) => !x.b.day).sort((a, b) => (a.b.hall || "~").localeCompare(b.b.hall || "~") || (a.b.booth || "").localeCompare(b.b.booth || "", undefined, { numeric: true }));
   if (!todo.length) return toast("나눌 업체가 없어요.");
-  const load = P.v.trip.days.map((_, i) => P.v.companies.filter((c) => c.picked !== false && c.day === i + 1).length);
+  const load = P.v.trip.days.map((_, i) => all.filter((x) => x.b.day === i + 1).length);
   const total = load.reduce((a, b) => a + b, 0) + todo.length;
-  const target = Math.ceil(total / n);
+  // 같은 조건이면 첫날을 가볍게(전체를 둘러볼 시간): 첫날 몫은 다른 날의 약 60%. 이미 정해 둔 일정은 그대로 두고 그 위에 채운다.
+  const w = P.v.trip.days.map((_, i) => (i === 0 && n > 1 ? 0.6 : 1));
+  const W = w.reduce((a, b) => a + b, 0);
+  const cap = w.map((x) => Math.max(1, Math.round((total * x) / W)));
   const assign = new Map();
   let d = 0;
-  todo.forEach((c, i) => {
-    while (d < n - 1 && load[d] >= target && !(todo[i - 1] && todo[i - 1].hall === c.hall && c.hall && load[d] < target + 3)) d++;
-    assign.set(c.id, d + 1);
+  todo.forEach((x, k) => {
+    const prev = todo[k - 1];
+    while (d < n - 1 && load[d] >= cap[d] && !(prev && prev.b.hall === x.b.hall && x.b.hall && load[d] < cap[d] + 2)) d++;
+    assign.set(`${x.c.id}#${x.i}`, d + 1);
     load[d]++;
   });
-  guard(() => saveCompanies(P.v.companies.map((c) => (assign.has(c.id) ? { ...c, day: assign.get(c.id) } : c))));
+  guard(() => saveCompanies(P.v.companies.map((c) => ({ ...c, booths: bs(c).map((b, i) => (assign.has(`${c.id}#${i}`) ? { ...b, day: assign.get(`${c.id}#${i}`) } : b)) }))));
   toast(`${todo.length}곳을 나눴어요. 필요하면 ◀ ▶ 로 옮기세요.`);
 }
 
@@ -291,21 +308,31 @@ function openCompanyEditor(c) {
   modal(c ? "업체 편집" : "업체 직접 추가", (m, close) => {
     const f = {
       name: h("input", { value: c?.name || "" }), category: h("input", { value: c?.category || "", placeholder: "예) 협동로봇" }),
-      hall: h("input", { value: c?.hall || "" }), booth: h("input", { value: c?.booth || "" }),
       preNotes: h("textarea", { value: c?.preNotes || "", placeholder: "사전 메모 (폰에서 업체 화면에 보여요)" }),
       questions: h("textarea", { value: (c?.questions || []).join("\n"), placeholder: "확인할 질문 (한 줄에 하나)" }),
     };
     const fld = (l, el) => h("div", { class: "field" }, h("label", {}, l), el);
-    m.append(fld("업체명", f.name), h("div", { class: "row" }, h("div", { class: "grow" }, fld("카테고리", f.category)), h("div", { style: "width:100px" }, fld("홀", f.hall)), h("div", { style: "width:100px" }, fld("부스", f.booth))),
+    // 부스가 여러 곳이면 줄을 늘린다. 업체(체크박스)는 1개로 세고, 일정 배분만 부스별로 나뉜다.
+    const rows = [];
+    const boothBox = h("div", { style: "display:flex;flex-direction:column;gap:6px" });
+    const addRow = (b) => {
+      const r = { b, hall: h("input", { value: b.hall || "", placeholder: "홀 (예: 5)", "aria-label": "홀" }), booth: h("input", { value: b.booth || "", placeholder: "부스 (예: 5-210)", "aria-label": "부스" }) };
+      r.el = h("div", { class: "row", style: "gap:6px" }, h("div", { style: "width:110px" }, r.hall), h("div", { class: "grow" }, r.booth),
+        h("button", { class: "btn sm ghost", "aria-label": "부스 줄 삭제", onclick: () => { if (rows.length < 2) { r.hall.value = ""; r.booth.value = ""; return; } rows.splice(rows.indexOf(r), 1); r.el.remove(); } }, "×"));
+      rows.push(r); boothBox.append(r.el);
+    };
+    (c ? bs(c) : [{}]).forEach(addRow);
+    m.append(fld("업체명", f.name), fld("카테고리", f.category), h("div", { class: "field" }, h("label", {}, "홀 · 부스 (여러 곳이면 + 로 추가)"), boothBox,
+      h("button", { class: "btn sm", style: "align-self:flex-start;margin-top:4px", onclick: () => addRow({}) }, "+ 부스 추가")),
       fld("사전 메모", f.preNotes), fld("확인할 질문", f.questions));
     if (c?.reason) m.append(h("div", { class: "msg" }, "AI가 적은 이유: " + c.reason));
     m.append(h("div", { class: "row", style: "justify-content:space-between" },
       c ? h("button", { class: "btn danger", onclick: () => confirmBox("업체 삭제", `'${c.name}' 을(를) 목록에서 지울까요?`, "삭제", () => guard(() => saveCompanies(P.v.companies.filter((x) => x.id !== c.id))), true) }, "삭제") : h("span"),
       h("button", { class: "btn primary", onclick: () => {
         if (!f.name.value.trim()) return toast("업체명을 입력해 주세요.", true);
-        const data = { name: f.name.value.trim(), category: f.category.value.trim() || "기타", hall: f.hall.value.trim(), booth: f.booth.value.trim(), preNotes: f.preNotes.value, questions: f.questions.value.split("\n").map((x) => x.trim()).filter(Boolean) };
+        const data = { name: f.name.value.trim(), category: f.category.value.trim() || "기타", booths: rows.map((r) => ({ ...r.b, hall: r.hall.value.trim(), booth: r.booth.value.trim() })).filter((b) => b.hall || b.booth), preNotes: f.preNotes.value, questions: f.questions.value.split("\n").map((x) => x.trim()).filter(Boolean) };
         const list = c ? P.v.companies.map((x) => (x.id === c.id ? { ...x, ...data } : x))
-          : [...P.v.companies, { id: "c-" + Math.random().toString(16).slice(2, 10), day: null, picked: true, source: "manual", ...data }];
+          : [...P.v.companies, { id: "c-" + Math.random().toString(16).slice(2, 10), picked: true, source: "manual", ...data }];
         close();
         guard(() => saveCompanies(list));
       } }, "저장")));

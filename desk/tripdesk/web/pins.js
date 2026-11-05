@@ -58,7 +58,7 @@ export async function pinsPanel(P, redraw) {
   const primary = maps.find((m) => m.primary) || maps[0];
   const card = h("div", { class: "card" }, h("h3", {}, "홀 위치 지정"));
   if (!primary) return null;
-  const picked = companies.filter((c) => c.picked !== false && hallKey(c.hall));
+  const picked = companies.filter((c) => c.picked !== false).flatMap((c) => (c.booths?.length ? c.booths : [c])).filter((b) => hallKey(b.hall)); // 부스 단위
   const halls = [...new Set(picked.map((c) => hallKey(c.hall)))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
   if (!halls.length) {
     card.append(h("div", { class: "msg" }, "업체에 홀 정보가 아직 없어요. 홀이 정해지면 여기서 지도 위 위치를 찍을 수 있어요."));

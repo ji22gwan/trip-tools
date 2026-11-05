@@ -238,3 +238,36 @@ def test_travel_legacy_flat_records_merge_into_journey(store):
     assert len(out) == 2 and len(out[0]["segments"]) == 2 and out[1]["direction"] == "return"
     assert travel.build_booking_prompt("").startswith("첨부한 이미지") and "24시간제" in travel.build_booking_prompt("") and "AM/PM" in travel.build_booking_prompt("")
     assert "예약 내용" in travel.build_booking_prompt("LH713 11/23")
+
+
+def test_multi_booth_company_one_checkbox_many_stops(store):
+    import io, json, zipfile
+    from tripdesk import booths, companies_io, package, reports, research
+    t = store.create_trip("M", "V", "2026-11-24", "2026-11-26", "")
+    tid = t["id"]
+    items, _ = research.sanitize({"companies": [
+        {"name": "Codewerk GmbH", "category": "AI.소프트웨어", "booth": "5-210, 6-350G", "reason": "[키워드] x", "sourceUrl": "https://e.com/a", "verified": True},
+        {"name": "Duo", "category": "로봇", "booths": [{"hall": "3A", "booth": "3A-100"}, {"hall": "4", "booth": "4-20"}, {"hall": "4", "booth": "4-20"}], "sourceUrl": "https://e.com/b", "verified": True}]})
+    cs, added, _ = research.add_candidates(store.get_companies(tid), items, [])
+    store.set_companies(tid, cs)
+    assert added == 2  # 업체 수는 체크박스 기준
+    c = store.get_companies(tid)[0]
+    assert [(b["hall"], b["booth"]) for b in c["booths"]] == [("5", "5-210"), ("6", "6-350G")] and c["hall"] == "5"
+    assert len(store.get_companies(tid)[1]["booths"]) == 2  # 같은 부스 중복 입력은 하나로
+    cs = store.get_companies(tid)
+    cs[0]["booths"][0]["day"], cs[0]["booths"][1]["day"] = 1, 3
+    for x in cs:
+        x["picked"] = True
+    store.set_companies(tid, cs)
+    st = booths.stops(store.get_companies(tid)[0])
+    assert [x["id"] for x in st] == [cs[0]["id"], cs[0]["id"] + "#2"] and [x["day"] for x in st] == [1, 3]
+    _, data = package.build_package(store, tid)
+    z = zipfile.ZipFile(io.BytesIO(data))
+    out = json.loads(z.read(next(n for n in z.namelist() if n.endswith("companies.json"))))
+    assert len(out) == 4  # 업체 2곳 → 방문 지점 4곳
+    dup = [x for x in out if x["name"] == "Codewerk GmbH"]
+    assert dup[1]["dup"]["i"] == 2 and dup[1]["dup"]["n"] == 2 and dup[1]["dup"]["others"][0]["id"] == cs[0]["id"] and dup[1]["day"] == 3
+    assert len(reports._plan(store, tid)) == 4
+    rows = companies_io.merge_companies(store.get_companies(tid), [{"name": "codewerk gmbh", "category": "x", "booths": [{"hall": "6", "booth": "6-350G", "day": 2}, {"hall": "7", "booth": "7-1", "day": None}]}])
+    cw = rows[0][0]
+    assert len(cw["booths"]) == 3 and cw["booths"][1]["day"] == 2 and cw["id"] == cs[0]["id"]

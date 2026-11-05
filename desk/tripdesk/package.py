@@ -5,7 +5,7 @@ import re
 import zipfile
 
 from . import SCHEMA_VERSION, research, sessions as sess
-from . import travel
+from . import booths, travel
 from .store import Store, StoreError, hall_key
 
 
@@ -34,13 +34,14 @@ def check(store: Store, trip_id: str) -> list[str]:
         warns.append(f"지도가 여러 장이에요. 패키지에는 대표 지도 '{store.primary_map(trip_id).name}' 1장만 들어가요.")
     cs = picked(store.get_companies(trip_id))
     pins = store.get_trip(trip_id).get("hallPins", {})
-    missing = sorted({hall_key(c["hall"]) for c in cs if hall_key(c.get("hall")) and hall_key(c["hall"]) not in pins})
+    stops = [x for c in cs for x in booths.stops(c)]
+    missing = sorted({hall_key(x["hall"]) for x in stops if hall_key(x.get("hall")) and hall_key(x["hall"]) not in pins})
     if store.list_maps(trip_id) and missing:
         warns.append(f"지도에 위치를 정하지 않은 홀이 있어요: {', '.join(missing)} ('지도에 배치' 탭). 폰 지도에 이 홀의 업체는 표시되지 않아요.")
     if not cs:
         warns.append("패키지에 넣을 업체를 아직 고르지 않았어요. 현장에서 하나씩 추가해야 합니다.")
-    elif any(c.get("day") is None for c in cs):
-        warns.append(f"일정(일차)이 정해지지 않은 업체가 {sum(c.get('day') is None for c in cs)}곳 있어요.")
+    elif any(x["day"] is None for x in stops):
+        warns.append(f"일정(일차)이 정해지지 않은 방문 지점(부스)이 {sum(x['day'] is None for x in stops)}곳 있어요.")
     ss = store.get_sessions(trip_id)
     if any(not x.get("verified") for x in ss):
         warns.append(f"공식 사이트에서 확인하지 못한 세션이 {sum(not x.get('verified') for x in ss)}개 있어요. 일정이 바뀌었을 수 있으니 확인해 주세요.")
@@ -67,14 +68,15 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
                      for x in store.get_sessions(trip_id)],  # 세션은 전부 폰으로 보내고, 갈지 말지는 폰에서 고른다
         "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다
     }
-    companies = [
-        {
-            "id": c["id"], "name": c["name"], "category": c.get("category") or "기타",
-            "hall": c.get("hall", ""), "booth": c.get("booth", ""), "day": c.get("day"),
-            "preNotes": research.package_note(c), "questions": c.get("questions", []),
-        }
-        for c in picked(store.get_companies(trip_id))
-    ]
+    companies = []
+    for c in picked(store.get_companies(trip_id)):
+        st = booths.stops(c)
+        for x in st:
+            item = {"id": x["id"], "name": c["name"], "category": c.get("category") or "기타", "hall": x["hall"], "booth": x["booth"], "day": x["day"],
+                    "preNotes": research.package_note(c), "questions": c.get("questions", [])}
+            if len(st) > 1:  # 같은 업체의 다른 부스 — 폰에서 '중복 업체'로 알아볼 수 있게 한다
+                item["dup"] = {"n": len(st), "i": x["index"] + 1, "others": [{"id": y["id"], "hall": y["hall"], "booth": y["booth"], "day": y["day"]} for y in st if y is not x]}
+            companies.append(item)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(f"{root}/trip.json", json.dumps(trip_out, ensure_ascii=False, indent=2))

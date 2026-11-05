@@ -156,7 +156,8 @@ class Store:
 
     # ---- 업체 / 용어 ----
     def get_companies(self, trip_id: str) -> list[dict]:
-        return self._read(self._dir(trip_id) / "companies.json", [])
+        from . import booths
+        return [booths.norm(c) for c in self._read(self._dir(trip_id) / "companies.json", []) if isinstance(c, dict)]
 
     def set_companies(self, trip_id: str, companies: list[dict]) -> None:
         self._write(self._dir(trip_id) / "companies.json", companies)

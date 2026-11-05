@@ -154,6 +154,8 @@ export async function importTripPackage(file) {
       hall: c.hall || "",
       booth: c.booth || "",
       day: c.day ?? null,
+      // 같은 업체가 부스를 여러 곳에 가진 경우(Desk 가 부스마다 한 줄로 보내고 서로 연결해 둔다)
+      dup: c.dup && Number(c.dup.n) > 1 ? { n: Number(c.dup.n), i: Number(c.dup.i) || 1, others: (Array.isArray(c.dup.others) ? c.dup.others : []).map((o) => ({ id: String(o.id), hall: o.hall || "", booth: o.booth || "", day: o.day ?? null })) } : null,
       preNotes: c.preNotes || "",
       questions: normalizeQuestions(c.questions, prev?.questions),
       addedOnSite: prev?.addedOnSite ?? !!c.addedOnSite,
