@@ -269,11 +269,19 @@ class Api:
         d = jbody(body)
         kws = research.split_keywords(d.get("keywords", ""))
         names = [c["name"] for c in self.store.get_companies(tid)]
+        if kws:  # 쓴 키워드와 업체 수는 출장에 저장해 둔다
+            self.store.update_trip(tid, keywords=kws, keywordCount=int(d.get("count") or 20))
         try:
             prompt = research.build_keyword_prompt(trip, kws, int(d.get("count") or 20), trip.get("siteUrl", ""), names)
         except research.ResearchError as e:
             raise StoreError(str(e)) from e
         return {"prompt": prompt, "keywords": kws}
+
+    @route("PUT", r"/api/trips/(?P<tid>[^/]+)/keywords")
+    def put_keywords(self, m, q, body):
+        d = jbody(body)
+        self.store.update_trip(m["tid"], keywords=research.split_keywords(", ".join(d.get("keywords") or [])), keywordCount=int(d.get("count") or 20))
+        return self.trip_view(m["tid"])
 
     @route("POST", r"/api/trips/(?P<tid>[^/]+)/paste/exhibitors")
     def paste_exhibitors(self, m, q, body):

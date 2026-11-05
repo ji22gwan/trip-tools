@@ -156,3 +156,13 @@ def test_travel_links_prompts_and_records(store):
     _, data = package.build_package(store, tid)
     z = zipfile.ZipFile(io.BytesIO(data))
     assert json.loads(z.read(next(n for n in z.namelist() if n.endswith("trip.json"))))["bookings"]["hotels"][0]["name"] == "Hotel X"
+
+
+def test_trip_keywords_saved_and_cleaned(store):
+    t = store.create_trip("K", "V", "2026-11-24", "2026-11-26", "") if hasattr(store, "create_trip") else None
+    if t is None:
+        return
+    out = store.update_trip(t["id"], keywords=[" 용접 로봇 ", "용접 로봇", "", "비전 센서"], keywordCount=30)
+    assert out["keywords"] == ["용접 로봇", "비전 센서"] and out["keywordCount"] == 30
+    assert store.update_trip(t["id"], keywordCount=1000)["keywordCount"] == 30  # 범위 밖은 무시
+    assert store.get_trip(t["id"])["keywords"] == ["용접 로봇", "비전 센서"]

@@ -295,24 +295,40 @@ function openCompanyEditor(c) {
 
 // ---------------- AI 프롬프트(키워드) ----------------
 function openKeywordPrompt() {
-  const kw = h("input", { placeholder: "예) 휴머노이드, 용접 로봇, 비전 센서", value: "" });
+  // 저장된 키워드를 칩으로 보여 주고, 칩의 ×로 삭제·입력칸으로 추가한다. 바뀔 때마다 출장에 저장돼 다음에도 남는다.
+  let kws = [...(P.v.trip.keywords || [])];
+  const chips = h("div", { class: "row", style: "flex-wrap:wrap;gap:6px;margin-bottom:6px" });
+  const kw = h("input", { placeholder: kws.length ? "키워드 추가 (쉼표나 Enter 로 확정)" : "예) 휴머노이드, 용접 로봇, 비전 센서 (쉼표나 Enter 로 확정)", value: "" });
   const count = h("select", {}, ...[10, 20, 30, 40, 50, 100].map((n) => h("option", { value: n }, `최대 ${n}곳`)));
-  count.value = "20";
+  count.value = String(P.v.trip.keywordCount || 20);
+  const persist = () => api("PUT", `/trips/${P.tid}/keywords`, { keywords: kws, count: Number(count.value) }).then((r) => { P.v = r; }).catch(() => {});
+  const drawChips = () => chips.replaceChildren(...kws.map((k) => h("span", { class: "pill", style: "display:inline-flex;gap:6px;align-items:center" }, k,
+    h("button", { class: "btn sm ghost", "aria-label": k + " 삭제", style: "padding:0 4px;min-height:0", onclick: () => { kws = kws.filter((x) => x !== k); drawChips(); persist(); } }, "×"))));
+  const commit = () => {
+    const add = kw.value.split(/[,\n;/、]+/).map((x) => x.trim()).filter(Boolean);
+    if (!add.length) return;
+    for (const a of add) if (!kws.includes(a) && kws.length < 12) kws.push(a);
+    kw.value = ""; drawChips(); persist();
+  };
+  kw.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
+  kw.addEventListener("input", () => { if (/[,;、]$/.test(kw.value)) commit(); });
+  count.addEventListener("change", persist);
+  drawChips();
   let last = "";
   promptModal({
     title: "키워드로 참가업체 찾기 (AI 챗봇용)",
     intro: "Desk 가 AI를 직접 부르지는 않아요. 키워드를 적으면 AI 챗봇에 붙여 넣을 프롬프트를 만들어 주고, AI 의 답을 붙여 넣으면 후보 목록에 쌓여요. 이미 목록에 있는 업체는 프롬프트에서 제외돼요.",
     auto: false,
     extraTop: (ctl) => h("div", { class: "row" },
-      h("div", { class: "grow field" }, h("label", {}, "찾고 싶은 키워드 (쉼표로 구분)"), kw),
+      h("div", { class: "grow field" }, h("label", {}, "찾고 싶은 키워드 (저장돼요 · × 로 삭제)"), chips, kw),
       h("div", { class: "field", style: "width:130px" }, h("label", {}, "업체 수"), count),
-      h("button", { class: "btn primary", style: "align-self:flex-end", onclick: () => { last = kw.value; ctl.load(); } }, "프롬프트 만들기")),
+      h("button", { class: "btn primary", style: "align-self:flex-end", onclick: () => { commit(); last = kws.join(", "); ctl.load(); } }, "프롬프트 만들기")),
     getPrompts: async () => {
-      const r = await api("POST", `/trips/${P.tid}/prompt/exhibitors`, { keywords: kw.value, count: Number(count.value) });
+      const r = await api("POST", `/trips/${P.tid}/prompt/exhibitors`, { keywords: kws.join(", "), count: Number(count.value) });
       return [r.prompt];
     },
     onPaste: async (text) => {
-      const r = await api("POST", `/trips/${P.tid}/paste/exhibitors`, { text, keywords: last || kw.value });
+      const r = await api("POST", `/trips/${P.tid}/paste/exhibitors`, { text, keywords: last || kws.join(", ") });
       P.v = r;
       P.tab = "cands";
       P.cat = "전체";

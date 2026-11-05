@@ -133,6 +133,15 @@ class Store:
         for k, v in fields.items():
             if k in allowed and isinstance(v, str):
                 trip[k] = v.strip()
+        if isinstance(fields.get("keywords"), list):  # 후보 검색 키워드: 저장해 두고 나중에 추가·삭제해 다시 검색
+            out = []
+            for k in fields["keywords"]:
+                k = str(k).strip()[:60]
+                if k and k not in out:
+                    out.append(k)
+            trip["keywords"] = out[:12]
+        if isinstance(fields.get("keywordCount"), int) and 5 <= fields["keywordCount"] <= 100:
+            trip["keywordCount"] = fields["keywordCount"]
         if "hallPins" in fields:
             trip["hallPins"] = clean_hall_pins(fields["hallPins"])
         if "start" in fields and fields["start"]:
