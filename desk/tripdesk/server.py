@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import cloud, companies_io, daily, dayai, mapfinder, package, reports, research, transcribe, travel
+from . import cloud, companies_io, daily, dayai, mapfinder, package, pptdata, reports, research, transcribe, travel
 from .store import Store, StoreError
 
 WEB = Path(__file__).parent / "web"
@@ -456,8 +456,15 @@ class Api:
             out = dayai.apply_final(jbody(body).get("text", ""))
         except research.ResearchError as e:
             raise StoreError(str(e)) from e
-        daily._write(self.store._dir(m["tid"]) / "final.json", out)
+        self._save_final(m["tid"], out)
         return {"report": reports.build_final(self.store, m["tid"])}
+
+    def _save_final(self, tid, out):
+        p = self.store._dir(tid) / "final.json"
+        keep = daily._read(p, {}).get("ppt")
+        if keep:
+            out = {**out, "ppt": keep}  # PPT용 자료는 총평을 고쳐도 지워지지 않는다
+        daily._write(p, out)
 
     @route("PUT", r"/api/trips/(?P<tid>[^/]+)/final")
     def put_final(self, m, q, body):
@@ -465,8 +472,35 @@ class Api:
         out = {"overview": str(d.get("overview") or "").strip(),
                "highlights": [str(x).strip() for x in d.get("highlights") or [] if str(x).strip()],
                "followups": [str(x).strip() for x in d.get("followups") or [] if str(x).strip()]}
-        daily._write(self.store._dir(m["tid"]) / "final.json", out)
+        self._save_final(m["tid"], out)
         return {"report": reports.build_final(self.store, m["tid"])}
+
+    # ---- PPT용 자료 (사내 참관 보고서 형식 Markdown + 사진 ZIP) ----
+    @route("PUT", r"/api/trips/(?P<tid>[^/]+)/final/ppt")
+    def put_ppt(self, m, q, body):
+        pptdata.save(self.store, m["tid"], jbody(body))
+        return {"report": reports.build_final(self.store, m["tid"])}
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/final/ppt-prompt")
+    def ppt_prompt(self, m, q, body):
+        r = reports.build_final(self.store, m["tid"])
+        if not r["days"]:
+            raise StoreError("가져온 일간 데이터가 없어요.")
+        return {"prompt": pptdata.build_prompt(self.store.get_trip(m["tid"]), r)}
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/final/ppt-paste")
+    def ppt_paste(self, m, q, body):
+        r = reports.build_final(self.store, m["tid"])
+        try:
+            pptdata.apply_reply(jbody(body).get("text", ""), self.store, m["tid"], {c["id"] for c in r["companies"]}, {c["id"]: c["name"] for c in r["companies"]})
+        except research.ResearchError as e:
+            raise StoreError(str(e)) from e
+        return {"report": reports.build_final(self.store, m["tid"])}
+
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/final-ppt\.zip")
+    def final_ppt_zip(self, m, q, body):
+        r = reports.build_final(self.store, m["tid"])
+        return ("bytes", pptdata.build_zip(self.store, m["tid"], r), "application/zip", f"{r['tripName']}_최종보고서_PPT용.zip")
 
     @route("GET", r"/api/trips/(?P<tid>[^/]+)/final\.md")
     def final_md(self, m, q, body):

@@ -261,3 +261,32 @@ def test_api_day_flow(store):
     finally:
         transcribe.set_backend(None)
         httpd.shutdown()
+
+
+def test_ppt_markdown_zip_and_keeps_after_final_edit(store, zpath):
+    import zipfile as zf
+    from tripdesk import pptdata
+    t = prep(store, zpath)
+    fr = reports.build_final(store, t["id"])
+    pr = pptdata.build_prompt(store.get_trip(t["id"]), fr)
+    assert "id=c-a" in pr and "추가 확인 필요" in pr
+    reply = {"fair": {"name": "SPS 2026", "summary": ["스마트 생산 자동화 박람회"], "scale": [], "halls": ["Hall 3A: 로봇"], "slogan": []},
+             "companies": [{"id": "c-a", "group": "휴머노이드", "level": 2, "check": "하중 검증 필요", "usage": [{"title": "운반", "points": ["블록 소부재 이송"]}]},
+                           {"name": "Gadget Neu", "level": "9", "check": "명함 확인"}, {"id": "nope", "check": "무시"}],
+             "insights": [{"title": f"항목{i}", "points": ["a", "b"]} for i in range(6)], "conclusions": [{"title": "결론1", "points": ["x"]}]}
+    out = pptdata.apply_reply("```json\n" + json.dumps(reply, ensure_ascii=False) + "\n```", store, t["id"],
+                              {c["id"] for c in fr["companies"]}, {c["id"]: c["name"] for c in fr["companies"]})
+    assert len(out["insights"]) == 4 and out["companies"]["c-a"]["level"] == 2 and out["companies"]["c-g"]["level"] is None and "nope" not in out["companies"]
+    pptdata.save(store, t["id"], {"attendees": "홍길동 책임", "remark": "데모"})
+    # 총평을 저장해도 PPT용 자료는 남는다
+    daily._write(store._dir(t["id"]) / "final.json", {**daily._read(store._dir(t["id"]) / "final.json", {}), "overview": "총평"})
+    fr = reports.build_final(store, t["id"])
+    assert fr["ppt"]["attendees"] == "홍길동 책임"
+    z = zf.ZipFile(io.BytesIO(pptdata.build_zip(store, t["id"], fr)))
+    names = z.namelist()
+    md = z.read("최종보고서_PPT용.md").decode()
+    assert any(n.startswith("photos/day1_alpha") for n in names) and "![Alpha Robotics](photos/day1_alpha_1030_01.jpg)" in md
+    assert "| 일정 | 장소 | 출장자 | 비고 |" in md and "홍길동 책임" in md and "| 휴머노이드 | Alpha Robotics | 2 | 하중 검증 필요 |" in md
+    assert "추가 확인 필요" in md and "### 시사점" in md and "※ 1: 단기 적용 가능" in md and "## [별첨] 업체별 자료" in md
+    with pytest.raises(Exception):
+        pptdata.apply_reply("```json\n{}\n```", store, t["id"], set(), {})

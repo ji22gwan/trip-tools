@@ -156,3 +156,17 @@ POINTS = {
     "c-juliet": ["정격 500N, 교정 주기 1년"],
     "c-eco": ["수직 필릿 용접 품질 보증 티칭 방식", "소조립 라인 사례 3곳"],
 }
+
+
+FAIR = dict(name="가상 스마트팩토리 엑스포 2026", summary=["가상의 스마트 제조 자동화 전시회"], scale=["참가 업체·방문객 수: 추가 확인 필요"], halls=["1홀: 로봇", "3A·3B홀: 용접·안전", "4홀: 이동로봇·센서"], slogan=["Make it smarter"])
+PPT_REPLY = {
+    "companies": [dict(id="c-alpha", usage=[dict(title="소부재 이송·조립 보조", points=["가반하중 20kg급, 대형 블록에는 부족", "시험 도입 전 견적·납기 확인"])]),
+                  dict(id="c-eco", usage=[dict(title="소조립 용접 자동화", points=["수직 필릿 티칭 방식 별도 보유", "조선소 납품 실적은 추가 확인 필요"])])],
+    "insights": [dict(title="전시회 기술 트렌드", points=["협동로봇의 중량물 대응 확대", "센서 기반 용접선 인식 보급"]),
+                 dict(title="AI·데이터", points=["현장 데이터 연계 구조가 핵심 과제"]),
+                 dict(title="업체 동향", points=["모션 제어와 비전의 통합 제안 증가"]),
+                 dict(title="조선소 과제", points=["비정형 블록 대응과 내환경성 검증 필요"])],
+    "conclusions": [dict(title="용접 자동화 단기 실증", points=["에코웰딩 소조립 라인 PoC 검토"]),
+                    dict(title="협동로봇 추가 검증", points=["알파로보틱스 견적·납기 확인"]),
+                    dict(title="이동로봇은 장기 검토", points=["적재 중량 요건 확인 후 재검토"])],
+}

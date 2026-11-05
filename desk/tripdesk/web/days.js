@@ -224,6 +224,49 @@ export async function finalView(root, tid, app) {
     getPrompts: async () => [(await api("POST", `/trips/${tid}/final/prompt`, {})).prompt],
     onPaste: async (text) => { await api("POST", `/trips/${tid}/final/paste`, { text }); toast("총평을 반영했어요."); reload(); },
   });
+
+  // ---- PPT용 자료: 사내 참관 보고서 양식 Markdown + 사진 ZIP ----
+  const pp = r.ppt;
+  const missing = [];
+  if (!pp.attendees) missing.push("출장자");
+  if (!pp.fair.summary.length) missing.push("박람회 개요");
+  if (pp.insights.length < 4 || pp.conclusions.length < 3) missing.push("시사점·결론");
+  const noLevel = r.companies.filter((c) => !(pp.companies[c.id] && pp.companies[c.id].level)).length;
+  if (noLevel) missing.push(`업체 수준 ${noLevel}곳`);
+  const openPpt = () => promptModal({
+    title: "PPT용 보고서 정리 (AI 챗봇용)",
+    intro: "일간 요약과 업체별 핵심 내용을 사내 참관 보고서 양식(박람회 개요·업체별 구분/수준/확인 사항·시사점·결론·업체별 활용처)으로 정리하게 하는 프롬프트예요. 박람회 개요는 웹 검색이 되는 챗봇이 정확해요.",
+    getPrompts: async () => [(await api("POST", `/trips/${tid}/final/ppt-prompt`, {})).prompt],
+    onPaste: async (text) => { await api("POST", `/trips/${tid}/final/ppt-paste`, { text }); toast("PPT용 자료에 반영했어요."); reload(); },
+  });
+  const editBasic = () => modal("보고서 기본 정보", (m, close) => {
+    const fld = (l, e) => h("div", { class: "field" }, h("label", {}, l), e);
+    const att = h("input", { value: pp.attendees, placeholder: "예: 홍길동 책임, 김철수 선임 (장비자동화팀)" });
+    const rem = h("input", { value: pp.remark });
+    const fa = {};
+    const fair = [["name", "명칭"], ["summary", "개요 (한 줄에 하나)"], ["scale", "규모 (한 줄에 하나)"], ["halls", "전시관 구성 및 주제"], ["slogan", "슬로건"]];
+    for (const [k] of fair) fa[k] = k === "name" ? h("input", { value: pp.fair.name }) : h("textarea", { value: pp.fair[k].join("\n"), style: "min-height:60px" });
+    const rows = r.companies.map((c) => {
+      const cur = pp.companies[c.id] || {};
+      const grp = h("input", { value: cur.group || c.category || "", style: "flex:1" });
+      const lv = h("select", {}, ...[["", "수준 미정"], ["1", "1 단기 적용"], ["2", "2 추가 검증"], ["3", "3 중·장기"]].map(([v, t]) => h("option", { value: v, selected: String(cur.level || "") === v }, t)));
+      const ck = h("input", { value: cur.check || "", placeholder: "확인 사항 1~2문장", style: "flex:2" });
+      return { c, grp, lv, ck, el: h("div", { class: "row", style: "gap:6px;margin-bottom:4px" }, h("b", { style: "width:120px;font-size:13px" }, c.name), grp, lv, ck) };
+    });
+    m.append(fld("출장자", att), fld("비고", rem), ...fair.map(([k, l]) => fld("박람회 " + l, fa[k])), h("h4", {}, "업체별 구분 · 수준 · 확인 사항"), ...rows.map((x) => x.el),
+      h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn", onclick: close }, "취소"), h("button", { class: "btn primary", onclick: () => guard(async () => {
+        const companies = {};
+        for (const x of rows) companies[x.c.id] = { group: x.grp.value, level: x.lv.value || null, check: x.ck.value };
+        await api("PUT", `/trips/${tid}/final/ppt`, { attendees: att.value, remark: rem.value, companies,
+          fair: { name: fa.name.value, summary: fa.summary.value, scale: fa.scale.value, halls: fa.halls.value, slogan: fa.slogan.value } });
+        close(); reload();
+      }) }, "저장")));
+  });
+  const pptCard = sec("PPT용 자료 (사내 참관 보고서 양식)",
+    h("div", { class: "sub", style: "line-height:1.6" }, "목적 · 일정/참석자 · 박람회 개요 · 주요 확인 사항 표 · 시사점/결론 · 업체별 별첨 순서의 Markdown 과 사진을 ZIP 으로 내려받아요. 이 파일과 PPT 요청 프롬프트를 AI 에게 주면 PPT 로 만들어 줘요."),
+    missing.length ? h("div", { class: "msg warn" }, "비어 있는 항목: " + missing.join(", ") + " — 비어 있으면 Markdown 에 '추가 확인 필요'로 표시돼요.") : h("div", { class: "msg" }, "필요한 항목이 모두 채워졌어요."),
+    h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => download(`/trips/${tid}/final-ppt.zip`) }, "PPT용 자료 내려받기 (Markdown + 사진)"),
+      h("button", { class: "btn", onclick: openPpt }, "AI 정리 프롬프트"), h("button", { class: "btn", onclick: editBasic }, "기본 정보·업체 수준 입력")));
   root.replaceChildren(
     h("div", { class: "top" }, h("div", { class: "row", style: "gap:14px" }, h("h1", {}, "최종 보고서"), h("span", { class: "pill" }, `${r.dates[0]} ~ ${r.dates[r.dates.length - 1]}`)),
       h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => download(`/trips/${tid}/final.docx`) }, "Word 로 저장"), h("button", { class: "btn", onclick: () => download(`/trips/${tid}/final.md`) }, "Markdown"))),
@@ -232,6 +275,7 @@ export async function finalView(root, tid, app) {
     sec("총평", f.overview ? h("div", { style: "line-height:1.7;white-space:pre-wrap" }, marked(f.overview)) : h("div", { class: "msg" }, "아직 총평이 없어요. 'AI 총평 프롬프트'로 만들거나 직접 쓸 수 있어요."),
       f.highlights.length ? h("div", {}, h("h4", {}, "주요 발견"), list(f.highlights)) : null, f.followups.length ? h("div", {}, h("h4", {}, "후속 조치"), list(f.followups)) : null,
       h("div", { class: "row" }, h("button", { class: "btn primary", onclick: openPrompt }, "AI 총평 프롬프트"), h("button", { class: "btn", onclick: editFinal }, "직접 쓰기/수정"))),
+    pptCard,
     sec("일자별 요약", ...r.days.map((d) => h("div", {}, h("div", { class: "row", style: "justify-content:space-between" }, h("h4", { style: "color:var(--ink)" }, `${d.day}일차 · ${fmtDate(d.date)}`), h("a", { class: "btn sm ghost", href: `#/daily/${tid}/${d.day}` }, "일간 보고서 →")), h("div", { style: "line-height:1.6" }, marked(d.summary))))),
     sec(`업체별 정리 (${r.companies.length}곳)`, ...r.companies.map((c) => h("div", { style: "border-top:1px solid var(--line2);padding-top:10px" },
       h("h4", { style: "color:var(--ink);font-size:14px" }, c.name, h("span", { class: "sub" }, ` · ${c.category || "기타"}`), c.addedOnSite ? h("span", { class: "tag" }, "현장 추가") : null),

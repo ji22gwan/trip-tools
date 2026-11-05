@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import daily
+from . import daily, pptdata
 from .store import Store, StoreError
 
 MARK_BRACES = re.compile(r"\{\{(.*?)\}\}", re.S)
@@ -88,6 +88,7 @@ def build_final(store: Store, tid: str) -> dict:
         "tripName": trip["name"], "venue": trip.get("venue", ""), "purpose": trip.get("purpose", ""), "dates": trip["days"],
         "days": days, "companies": sorted(merged.values(), key=lambda m: (m["category"], m["name"])),
         "travel": _travel(store, tid, trip),
+        "ppt": pptdata.load(store, tid),
         "notVisited": not_visited, "checks": [dict(x, day=d["day"]) for d in days for x in d["checks"]],
         "final": {"overview": final.get("overview", ""), "highlights": final.get("highlights", []), "followups": final.get("followups", [])},
         "totals": {k: sum(d["stats"].get(k, 0) for d in days) for k in ("recordings", "memos", "photos", "audioSeconds")}

@@ -155,6 +155,21 @@ def main():
         pg.locator(".modalbg").evaluate("e=>e.remove()")
         call("POST", f"/trips/{tid}/final/paste", dict(text="```json\n" + json.dumps(D.FINAL, ensure_ascii=False) + "\n```"))
         go(f"final/{tid}"); shot("desk-28-final", full=True)
+
+        # ---------- 7. PPT용 자료 ----------
+        go(f"final/{tid}")
+        pg.locator("text=PPT용 자료").first.scroll_into_view_if_needed(); shot("desk-29-final-ppt-empty", full=True)
+        comps_p = {c[0]: dict(group=c[2], level=(1 if i % 5 == 0 else 3 if i % 5 == 4 else 2), check=c[8]) for i, c in enumerate(D.COMPANIES) if c[0] in D.PICKED}
+        call("PUT", f"/trips/{tid}/final/ppt", dict(attendees="지관 책임 (가상팀)", remark="데모", companies=comps_p, fair=D.FAIR))
+        call("POST", f"/trips/{tid}/final/ppt-paste", dict(text="```json\n" + json.dumps(D.PPT_REPLY, ensure_ascii=False) + "\n```"))
+        go(f"final/{tid}")
+        pg.locator("text=PPT용 자료").first.scroll_into_view_if_needed(); shot("desk-30-final-ppt-filled", full=True)
+        pg.get_by_role("button", name="기본 정보·업체 수준 입력").click(); pg.wait_for_timeout(500)
+        shot("desk-31-final-ppt-edit", clip_modal=True)
+        pg.locator(".modalbg").evaluate("e=>e.remove()")
+        import io, zipfile
+        z = zipfile.ZipFile(io.BytesIO(call("GET", f"/trips/{tid}/final-ppt.zip")))
+        (IMG.parent / "sample_ppt_report.md").write_bytes(z.read("최종보고서_PPT용.md")); print(len(z.namelist()), "files in zip")
         print("home", HOME)
         b.close()
     print(errs)
