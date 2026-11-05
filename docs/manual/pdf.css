@@ -1,0 +1,11 @@
+@page { size: A4; margin: 16mm 14mm; }
+body { font-family: "Noto Sans CJK KR","Noto Sans CJK JP","NanumGothic",sans-serif; font-size: 10.5pt; line-height: 1.6; max-width: none; }
+img { max-width: 100%; max-height: 120mm; border: 1px solid #ddd; display: block; margin: 6px 0; }
+h2 { border-bottom: 2px solid #f37521; padding-bottom: 4px; break-before: page; }
+h2:first-of-type { break-before: auto; }
+h3, h4 { break-after: avoid; }
+img, table, pre { break-inside: avoid; }
+pre, code { font-size: 9pt; background: #f4f4f4; white-space: pre-wrap; }
+table { border-collapse: collapse; }
+td, th { border: 1px solid #ccc; padding: 3px 6px; }
+td:first-child { white-space: nowrap; }

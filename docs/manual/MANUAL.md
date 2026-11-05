@@ -2,6 +2,7 @@
 
 > **노트북 앱 Trip Desk** 와 **폰 앱 Trip Field** 를 처음부터 끝까지 쓰는 방법입니다.
 > 화면과 데이터는 모두 **가상**입니다. (가상 스마트팩토리 엑스포 2026 / 데모 전시센터 / 데모에어 / 그랜드 데모 호텔, 업체 12곳은 전부 지어낸 이름)
+> PDF 로 받으려면 `docs/manual/make_pdf.sh` (Ubuntu: pandoc + 크롬 + fonts-noto-cjk 필요)
 > 화면 캡처는 `python3 docs/manual/make_desk_shots.py` 와 `make_phone_shots.py` 로 다시 만들 수 있어요.
 
 ## 목차
