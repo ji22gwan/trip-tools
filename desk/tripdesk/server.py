@@ -214,6 +214,21 @@ class Api:
         self.store.set_primary_map(m["tid"], jbody(body).get("name", ""))
         return self.trip_view(m["tid"])
 
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/map-render")
+    def map_render_state(self, m, q, body):
+        return self.store.render_state(m["tid"])
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/map-render")
+    def map_render_put(self, m, q, body):
+        step = q.get("step", "page")
+        if step == "begin":
+            self.store.render_begin(m["tid"])
+        elif step == "done":
+            return self.store.render_done(m["tid"])
+        else:
+            self.store.render_put(m["tid"], int(q.get("page", "1")), body)
+        return {"ok": True}
+
     @route("DELETE", r"/api/trips/(?P<tid>[^/]+)/maps/(?P<name>[^/]+)")
     def delete_map(self, m, q, body):
         self.store.delete_map(m["tid"], urllib.parse.unquote(m["name"]))

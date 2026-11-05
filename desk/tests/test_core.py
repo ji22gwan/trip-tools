@@ -287,3 +287,24 @@ def test_plan_report_markdown(store):
     planreport.save(store, tid, {"goals": "A\nB", "expected": ["C"]})
     md = planreport.build_markdown(store, tid)
     assert "- A" in md and "- C" in md and "휴머노이드 동향 조사" not in md
+
+
+def test_map_pdf_prerendered_images_go_into_package(store):
+    import io, json, zipfile
+    from tripdesk import package
+    t = store.create_trip("R", "V", "2026-11-24", "2026-11-25", "")
+    tid = t["id"]
+    store.add_map(tid, "plan.pdf", b"%PDF-1.4 fake")
+    assert store.render_state(tid)["needed"] is True
+    _, data = package.build_package(store, tid)
+    assert any(n.endswith("map/plan.pdf") for n in zipfile.ZipFile(io.BytesIO(data)).namelist())  # 변환 전에는 PDF 그대로(폰이 변환)
+    store.render_begin(tid)
+    store.render_put(tid, 1, b"\xff\xd8\xff" + b"a" * 10)
+    store.render_put(tid, 2, b"\xff\xd8\xff" + b"b" * 10)
+    store.render_done(tid)
+    assert store.render_state(tid)["needed"] is False
+    names = zipfile.ZipFile(io.BytesIO(package.build_package(store, tid)[1])).namelist()
+    assert any(n.endswith("map/plan_p01.jpg") for n in names) and any(n.endswith("map/plan_p02.jpg") for n in names) and not any(n.endswith(".pdf") for n in names)
+    store.add_map(tid, "plan2.pdf", b"%PDF-1.4 other")
+    store.set_primary_map(tid, "plan2.pdf")
+    assert store.render_state(tid)["needed"] is True  # 대표 지도가 바뀌면 다시 변환

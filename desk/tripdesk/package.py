@@ -3,6 +3,7 @@ import io
 import json
 import re
 import zipfile
+from pathlib import Path
 
 from . import SCHEMA_VERSION, research, sessions as sess
 from . import booths, travel
@@ -30,7 +31,9 @@ def check(store: Store, trip_id: str) -> list[str]:
     warns = []
     if not store.list_maps(trip_id):
         warns.append("전시장 지도가 아직 없어요. 지도 없이도 만들 수 있지만 폰에서 따로 불러와야 해요.")
-    elif len(store.list_maps(trip_id)) > 1:
+    if store.render_state(trip_id)["needed"]:
+        warns.append("대표 지도(PDF)를 폰용 이미지로 아직 바꾸지 않았어요. 이대로 보내면 폰에서 변환하느라 불러오기가 오래 걸려요. '패키지 확정' 창에서 자동으로 바꿔 줘요.")
+    if len(store.list_maps(trip_id)) > 1:
         warns.append(f"지도가 여러 장이에요. 패키지에는 대표 지도 '{store.primary_map(trip_id).name}' 1장만 들어가요.")
     cs = picked(store.get_companies(trip_id))
     pins = store.get_trip(trip_id).get("hallPins", {})
@@ -84,5 +87,10 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         z.writestr(f"{root}/glossary.json", json.dumps({"terms": store.get_glossary(trip_id)}, ensure_ascii=False, indent=2))
         primary = store.primary_map(trip_id)  # 폰에는 대표 지도 1장만 보낸다
         if primary:
-            z.write(primary, f"{root}/map/{primary.name}")
+            imgs = store.render_files(trip_id) if primary.suffix.lower() == ".pdf" else []
+            if imgs:  # PDF 는 노트북에서 미리 이미지로 바꿔 둔 것을 보낸다 → 폰이 변환하느라 오래 걸리지 않고 용량도 작다
+                for im in imgs:
+                    z.write(im, f"{root}/map/{Path(primary.name).stem}_{im.name}")
+            else:
+                z.write(primary, f"{root}/map/{primary.name}")
     return f"{root}.zip", buf.getvalue()

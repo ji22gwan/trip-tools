@@ -51,7 +51,11 @@ export async function renderSetup(root, ctx) {
       el.querySelectorAll("[data-id]").forEach((b) => (b.onclick = async () => {
         b.disabled = true;
         try {
-          const r = await importTripPackage(await downloadServerPackage(b.dataset.id));
+          const t0 = Date.now(), label = b.innerHTML;
+          const stage = (s) => { b.textContent = `${s} (${Math.round((Date.now() - t0) / 1000)}초)`; };
+          stage("내려받는 중…");
+          const buf = await downloadServerPackage(b.dataset.id);
+          const r = await importTripPackage(buf, stage);
           close();
           toast(`'${r.trip.name}' 불러옴 · 업체 ${r.added + r.updated}곳 · 맵 ${r.maps}장`, 4000);
           location.hash = "#/map";

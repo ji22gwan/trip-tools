@@ -1,4 +1,4 @@
-import { pinsPanel } from "./pins.js";
+import { pinsPanel, renderMapForPhone } from "./pins.js";
 import { travelTab } from "./travel.js";
 import { sessionsTab } from "./sessions.js";
 import { h, api, toast, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
@@ -418,20 +418,30 @@ function confirmPackage() {
   const warns = P.v.warnings;
   modal("패키지 확정", (m, close) => {
     m.append(h("div", { class: "msg" }, `선택한 ${s.picked}곳, 대표 지도 ${s.maps ? "1장" : "없음"}, 용어 ${P.v.glossary.length}개가 들어가요.`));
-    if (warns.length) m.append(h("div", { class: "msg warn" }, h("b", {}, "확인해 주세요"), h("ul", { style: "margin:6px 0 0;padding-left:18px" }, ...warns.map((w) => h("li", {}, w)))));
+    const shownWarns = warns.filter((w) => !w.includes("폰용 이미지로 아직")); // 이 창에서 자동으로 바꾸므로 따로 알리지 않는다
+    if (shownWarns.length) m.append(h("div", { class: "msg warn" }, h("b", {}, "확인해 주세요"), h("ul", { style: "margin:6px 0 0;padding-left:18px" }, ...shownWarns.map((w) => h("li", {}, w)))));
     const status = h("div", { class: "sub" }, "서버 연결 확인 중…");
+    // 지도가 PDF 면 폰용 이미지로 한 번만 바꿔 둔다(폰 불러오기가 빨라지고 용량도 줄어요). 끝나기 전에는 보내기 버튼을 막는다.
+    let mapReady = false, cloudReady = false;
+    const mapStatus = h("div", { class: "sub" }, "지도 확인 중…");
+    const refreshBtns = () => { send.disabled = !(mapReady && cloudReady); zipBtn.disabled = !mapReady; };
     const mark = () => { try { localStorage.setItem(flagKey(P.tid), "1"); } catch {} setTimeout(redraw, 200); };
+    const zipBtn = h("button", { class: "btn", disabled: true, onclick: () => { download(`/trips/${P.tid}/package`); mark(); close(); } }, "ZIP 내려받기");
     const send = h("button", { class: "btn primary", disabled: true, onclick: async (e) => {
       e.currentTarget.disabled = true;
       const r = await guard(() => api("POST", `/trips/${P.tid}/package/upload`, {}));
       if (r) { toast(`서버에 올렸어요 (${(r.size / 1024).toFixed(0)}KB). 폰에서 '서버에서 불러오기'를 누르세요.`); mark(); close(); } else e.currentTarget.disabled = false;
     } }, "폰으로 보내기 (서버)");
-    api("GET", "/cloud").then((c) => { send.disabled = !c.ready; status.textContent = c.ready ? "서버 보관함 사용 가능" : (c.hasToken ? "서버 보관함이 없어요. install-worker 를 다시 실행하면 만들어져요." : "서버 설치 기록을 찾지 못했어요. ZIP 으로 옮길 수 있어요."); }).catch(() => { status.textContent = "서버 상태를 확인하지 못했어요."; });
+    api("GET", "/cloud").then((c) => { cloudReady = !!c.ready; refreshBtns(); status.textContent = c.ready ? "서버 보관함 사용 가능" : (c.hasToken ? "서버 보관함이 없어요. install-worker 를 다시 실행하면 만들어져요." : "서버 설치 기록을 찾지 못했어요. ZIP 으로 옮길 수 있어요."); }).catch(() => { status.textContent = "서버 상태를 확인하지 못했어요."; });
     m.append(h("div", { class: "msg" }, h("b", {}, "폰으로 보내는 방법"), h("ol", { style: "margin:6px 0 0;padding-left:18px;line-height:1.7" },
       h("li", {}, "아래 '폰으로 보내기'를 누르면 서버에 올라가요."),
       h("li", {}, "폰에서 Trip Field → 설정 → '새 출장' → '서버에서 불러오기'를 누르세요."),
       h("li", {}, "인터넷이 안 될 땐 ZIP 으로 내려받아 AirDrop·메일·USB 로 옮기세요."))), status);
     m.append(h("div", { class: "row", style: "justify-content:flex-end;flex-wrap:wrap" }, h("button", { class: "btn", onclick: close }, "취소"),
-      h("button", { class: "btn", onclick: () => { download(`/trips/${P.tid}/package`); mark(); close(); } }, "ZIP 내려받기"), send));
+      zipBtn, send));
+    m.append(mapStatus);
+    renderMapForPhone(P.tid, (p, n) => { mapStatus.textContent = `지도를 폰용 이미지로 바꾸는 중… ${p}/${n}쪽 (처음 한 번만)`; })
+      .then((did) => { mapStatus.textContent = did ? "지도를 폰용 이미지로 바꿨어요." : "지도 준비됨"; mapReady = true; refreshBtns(); })
+      .catch((e) => { mapStatus.textContent = "지도를 바꾸지 못했어요(" + (e.message || e) + "). 그대로 보내면 폰이 대신 변환하느라 오래 걸려요."; mapReady = true; refreshBtns(); });
   });
 }

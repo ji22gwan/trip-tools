@@ -41,6 +41,35 @@ async function loadPages(url, isPdf) {
   return out;
 }
 
+// 대표 지도가 PDF 면 폰용 이미지(JPEG)로 바꿔 서버에 올려 둔다. 노트북에서 한 번만 하면 폰은 변환 없이 바로 쓴다.
+// 반환: 변환했으면 true, 이미 최신이거나 PDF 가 아니면 false
+export async function renderMapForPhone(tid, onProgress = () => {}) {
+  const st = await api("GET", `/trips/${tid}/map-render`);
+  if (!st.needed) return false;
+  const lib = await loadPdf();
+  const doc = await lib.getDocument({ url: `/api/trips/${tid}/maps/${encodeURIComponent(st.name)}` }).promise;
+  const n = Math.min(doc.numPages, 12);
+  await api("POST", `/trips/${tid}/map-render?step=begin`, {});
+  for (let p = 1; p <= n; p++) {
+    onProgress(p, n);
+    const page = await doc.getPage(p);
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: Math.min(2400 / base.width, 3) });
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(vp.width);
+    cv.height = Math.round(vp.height);
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const blob = await new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error("이미지 변환 실패"))), "image/jpeg", 0.85));
+    await api("POST", `/trips/${tid}/map-render?step=page&page=${p}`, await blob.arrayBuffer(), { raw: true });
+    cv.width = cv.height = 0;
+  }
+  await api("POST", `/trips/${tid}/map-render?step=done`, {});
+  return true;
+}
+
 // 지도 글자 중 홀 이름처럼 보이는 것만 (예: "3A", "Halle 7", "Hall 10.1")
 export function detectHalls(pages, wanted) {
   const found = {};

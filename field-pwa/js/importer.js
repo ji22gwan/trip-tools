@@ -25,7 +25,7 @@ function canvasToBlob(canvas, type = "image/png", quality) {
 }
 
 // PDF -> 페이지별 이미지. 아이폰 캔버스 한도를 넘지 않도록 픽셀 수를 제한한다.
-export async function pdfToImages(arrayBuffer, { maxPages = 12, targetWidth = 3600, maxPixels = 12_000_000 } = {}) {
+export async function pdfToImages(arrayBuffer, { maxPages = 12, targetWidth = 3000, maxPixels = 8_000_000 } = {}) {
   const pdfjs = await loadPdfJs();
   const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
   const out = [];
@@ -44,7 +44,7 @@ export async function pdfToImages(arrayBuffer, { maxPages = 12, targetWidth = 36
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: ctx, viewport }).promise;
-    const blob = await canvasToBlob(canvas, "image/png");
+    const blob = await canvasToBlob(canvas, "image/jpeg", 0.88); // PNG 보다 인코딩이 훨씬 빠르고 작다
     out.push({ blob, width: canvas.width, height: canvas.height, name: doc.numPages > 1 ? `페이지 ${i}` : "전시장 맵" });
     canvas.width = canvas.height = 0;
   }
@@ -98,7 +98,8 @@ function findEntry(zip, basename) {
   return names.find((n) => n.split("/").pop() === basename) || null;
 }
 
-export async function importTripPackage(file) {
+export async function importTripPackage(file, onStage = () => {}) {
+  onStage("압축 푸는 중…");
   const JSZip = requireJSZip();
   const zip = await JSZip.loadAsync(file);
 
@@ -176,6 +177,7 @@ export async function importTripPackage(file) {
     for (const p of mapPaths.sort()) {
       const blob = await zip.files[p].async("blob");
       const f = new File([blob], p.split("/").pop(), { type: blob.type });
+      onStage(f.name && /\.pdf$/i.test(f.name) ? "지도(PDF)를 이미지로 바꾸는 중… (Desk 에서 미리 바꾸면 빨라져요)" : "지도 저장 중…");
       maps += await importMapFile(trip.id, f, { replace: false });
     }
   }

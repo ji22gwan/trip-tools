@@ -216,6 +216,52 @@ class Store:
         self._write(self._dir(trip_id) / "trip.json", trip)
         return target.name
 
+    # ---- 폰용 지도 이미지: PDF 지도를 노트북에서 한 번만 이미지로 바꿔 두면 폰이 매번 변환하지 않아도 된다 ----
+    def _render_dir(self, trip_id: str) -> Path:
+        return self._dir(trip_id) / "map_render"
+
+    def _stamp(self, p: Path) -> dict:
+        st = p.stat()
+        return {"src": p.name, "size": st.st_size, "mtime": int(st.st_mtime)}
+
+    def render_state(self, trip_id: str) -> dict:
+        """대표 지도가 PDF 일 때 폰용 이미지가 최신인지. needed=True 면 노트북 화면에서 변환해 올려야 한다."""
+        p = self.primary_map(trip_id)
+        if not p or p.suffix.lower() != ".pdf":
+            return {"needed": False, "pdf": False, "name": p.name if p else "", "pages": []}
+        d = self._render_dir(trip_id)
+        meta = self._read(d / "meta.json", {})
+        pages = sorted(d.glob("p*.jpg")) if d.exists() else []
+        fresh = bool(pages) and meta.get("stamp") == self._stamp(p) and meta.get("pages") == len(pages)
+        return {"needed": not fresh, "pdf": True, "name": p.name, "pages": [x.name for x in pages] if fresh else []}
+
+    def render_begin(self, trip_id: str) -> None:
+        d = self._render_dir(trip_id)
+        if d.exists():
+            for x in d.iterdir():
+                x.unlink()
+        d.mkdir(exist_ok=True)
+
+    def render_put(self, trip_id: str, page: int, data: bytes) -> None:
+        if not data[:3] == b"\xff\xd8\xff" or not 1 <= page <= 12:
+            raise StoreError("지도 이미지 형식이 올바르지 않아요.")
+        d = self._render_dir(trip_id)
+        d.mkdir(exist_ok=True)
+        (d / f"p{page:02d}.jpg").write_bytes(data)
+
+    def render_done(self, trip_id: str) -> dict:
+        p = self.primary_map(trip_id)
+        d = self._render_dir(trip_id)
+        pages = sorted(d.glob("p*.jpg")) if d.exists() else []
+        if not p or not pages:
+            raise StoreError("변환된 지도 이미지가 없어요.")
+        self._write(d / "meta.json", {"stamp": self._stamp(p), "pages": len(pages)})
+        return self.render_state(trip_id)
+
+    def render_files(self, trip_id: str) -> list[Path]:
+        st = self.render_state(trip_id)
+        return [self._render_dir(trip_id) / n for n in st["pages"]]
+
     def primary_map(self, trip_id: str) -> Path | None:
         """패키지에 넣을 대표 지도 1장. 지정이 없거나 사라졌으면 남은 지도 중 첫 번째."""
         maps = self.list_maps(trip_id)
