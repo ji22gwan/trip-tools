@@ -61,11 +61,23 @@ def build_day(store: Store, tid: str, n: int) -> dict:
         bits.append("오늘 못 간 업체(일정 재조정): " + ", ".join(missed))
     return {
         "tripName": trip["name"], "venue": trip.get("venue", ""), "day": n, "date": v.get("date") or trip["days"][n - 1],
+        "sessions": [x for x in v.get("sessions", []) if isinstance(x, dict) and x.get("title")],
         "summary": st.get("summary") or auto, "summaryIsAi": bool(st.get("summary")), "stats": summary,
         "companies": comps_out, "checks": checks,
         "tomorrow": st["tomorrow"] if st.get("tomorrow") is not None else " · ".join(bits),
         "tomorrowIsAuto": st.get("tomorrow") is None,
     }
+
+
+def _attended(days: list[dict]) -> list[dict]:
+    """폰에서 '참석'으로 표시해 내보낸 세션(일간 데이터에 들어 있음)."""
+    out, seen = [], set()
+    for d in days:
+        for x in d.get("sessions", []):
+            if x.get("id") not in seen:
+                seen.add(x.get("id"))
+                out.append(x)
+    return sorted(out, key=lambda x: (x.get("date", ""), x.get("start") or "99:99"))
 
 
 def build_final(store: Store, tid: str) -> dict:
@@ -89,7 +101,7 @@ def build_final(store: Store, tid: str) -> dict:
         "days": days, "companies": sorted(merged.values(), key=lambda m: (m["category"], m["name"])),
         "travel": _travel(store, tid, trip),
         "ppt": pptdata.load(store, tid),
-        "sessions": [x for x in store.get_sessions(tid) if x.get("picked")],
+        "sessions": _attended(days),
         "notVisited": not_visited, "checks": [dict(x, day=d["day"]) for d in days for x in d["checks"]],
         "final": {"overview": final.get("overview", ""), "highlights": final.get("highlights", []), "followups": final.get("followups", [])},
         "totals": {k: sum(d["stats"].get(k, 0) for d in days) for k in ("recordings", "memos", "photos", "audioSeconds")}
@@ -163,8 +175,8 @@ def day_markdown(r: dict) -> str:
 
 
 def session_lines(r: dict) -> list[str]:
-    return [f"{x['date'][5:]} {x['start']}{('~' + x['end']) if x['end'] else ''} · {x['title']}"
-            + (f" ({x['place']}{' · 홀 ' + x['hall'] if x['hall'] else ''})" if x["place"] or x["hall"] else "") + (f" — {x['speaker']}" if x["speaker"] else "")
+    return [f"{x['date'][5:]} {x.get('start', '')}{('~' + x['end']) if x.get('end') else ''} · {x['title']}"
+            + (f" ({x.get('place', '')}{' · 홀 ' + x['hall'] if x.get('hall') else ''})" if x.get("place") or x.get("hall") else "") + (f" — {x['speaker']}" if x.get("speaker") else "")
             for x in r.get("sessions", [])]
 
 
@@ -179,7 +191,7 @@ def final_markdown(r: dict) -> str:
         L += ["## 이동·숙소·비용", *[f"- {x}" for x in tl], ""]
     sl = session_lines(r)
     if sl:
-        L += ["## 참관 세션(세미나·컨퍼런스)", *[f"- {x}" for x in sl], ""]
+        L += ["## 참관한 세션(세미나·컨퍼런스)", *[f"- {x}" for x in sl], ""]
     f = r["final"]
     if f["overview"]:
         L += ["## 총평", f["overview"], ""]
@@ -309,7 +321,7 @@ def final_docx(store: Store, tid: str, r: dict) -> bytes:
             d.add_paragraph(x, style="List Bullet")
     sl = session_lines(r)
     if sl:
-        d.add_heading("참관 세션(세미나·컨퍼런스)", 1)
+        d.add_heading("참관한 세션(세미나·컨퍼런스)", 1)
         for x in sl:
             d.add_paragraph(x, style="List Bullet")
     f = r["final"]

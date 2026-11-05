@@ -253,7 +253,7 @@ export function openBookings(trip) {
 }
 
 // 세션(세미나·컨퍼런스) 상세: 시간·장소·연사·주제, 홀이 있으면 맵에서 보기
-export function openSession(x, trip) {
+export function openSession(x, trip, onChange) {
   if (!x) return;
   const when = `${x.date.slice(5).replace("-", "/")} ${x.start || "시간 미정"}${x.end ? "~" + x.end : ""}`;
   const { el, close } = openSheet(`<div class="sheet-head"><h2 class="sheet-title">세션</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
@@ -263,8 +263,15 @@ export function openSession(x, trip) {
       <div class="small">${esc([x.place, x.hall && `홀 ${x.hall}`].filter(Boolean).join(" · ") || "장소 미정")}</div>
       ${x.speaker ? `<div class="small">연사 ${esc(x.speaker)}</div>` : ""}
       ${x.topic ? `<div class="small muted" style="line-height:1.6">${esc(x.topic)}</div>` : ""}
-      ${x.hall ? `<button class="btn btn-primary btn-block" id="sessMap">맵에서 홀 ${esc(x.hall)} 보기</button>` : ""}
+      <button class="btn btn-block ${x.going ? "" : "btn-primary"}" id="sessGo">${x.going ? "✓ 참석 예정 (누르면 취소)" : "참석할게요"}</button>
+      ${x.hall ? `<button class="btn btn-block" id="sessMap">맵에서 홀 ${esc(x.hall)} 보기</button>` : ""}
     </div>`);
+  el.querySelector("#sessGo").onclick = async () => {
+    x.going = !x.going;
+    trip.sessions = trip.sessions.map((o) => (o.id === x.id ? { ...o, going: x.going } : o));
+    await db.put("trips", trip);
+    close(); onChange?.();
+  };
   const b = el.querySelector("#sessMap");
   if (b) b.onclick = () => { try { sessionStorage.setItem("tf.focusHall", x.hall); } catch { /* 무시 */ } close(); location.hash = "#/map"; };
 }

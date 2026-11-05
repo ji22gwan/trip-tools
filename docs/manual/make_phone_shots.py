@@ -84,7 +84,9 @@ def main():
         shot("phone-08-list", full=True)
         pg.locator("[data-sess]").first.click(); pg.wait_for_timeout(700)
         shot("phone-15-session-sheet")
-        pg.locator("[data-close]").first.click(); pg.wait_for_timeout(400)
+        pg.click("#sessGo"); pg.wait_for_timeout(700)   # 참석할게요 → 목록에 '참석' 표시
+        pg.goto(BASE + "/#/list"); pg.wait_for_timeout(600)
+        shot("phone-08-list", full=True)   # '참석' 표시가 보이는 상태로 다시 캡처
         pg.locator(".item:not([data-sess])").first.click(); pg.wait_for_timeout(1200)
         shot("phone-09-company", full=True)
         pg.click("#trBtn"); pg.wait_for_timeout(600)

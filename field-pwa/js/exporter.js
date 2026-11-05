@@ -120,6 +120,7 @@ export async function buildDayZip(trip, day, JSZip = globalThis.JSZip) {
     exportedAt: new Date().toISOString(),
     tzOffsetMin: -new Date().getTimezoneOffset(), // 폰이 있던 곳의 UTC 대비 분(독일 겨울 +60). 노트북이 다른 시간대여도 현장 시각으로 보여 주기 위해
     companies: companiesOut,
+    sessions: (trip.sessions || []).filter((x) => x.going && x.date === trip.days[day - 1]).map((x) => ({ id: x.id, title: x.title, date: x.date, start: x.start, end: x.end, place: x.place, hall: x.hall, speaker: x.speaker })),
   };
   zip.file(`${dayDir}/visits.json`, JSON.stringify(visits, null, 2));
 

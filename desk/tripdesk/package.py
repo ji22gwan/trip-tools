@@ -42,9 +42,8 @@ def check(store: Store, trip_id: str) -> list[str]:
     elif any(c.get("day") is None for c in cs):
         warns.append(f"일정(일차)이 정해지지 않은 업체가 {sum(c.get('day') is None for c in cs)}곳 있어요.")
     ss = store.get_sessions(trip_id)
-    warns += sess.conflicts(ss)
-    if any(x.get("picked") and not x.get("verified") for x in ss):
-        warns.append("공식 사이트에서 확인하지 못한 세션이 포함돼 있어요. 일정이 바뀌었을 수 있으니 확인해 주세요.")
+    if any(not x.get("verified") for x in ss):
+        warns.append(f"공식 사이트에서 확인하지 못한 세션이 {sum(not x.get('verified') for x in ss)}개 있어요. 일정이 바뀌었을 수 있으니 확인해 주세요.")
     unverified = [c for c in cs if c.get("source") == "ai" and not c.get("verified")]
     if unverified:
         warns.append(f"AI가 찾았지만 참가 여부를 확인하지 못한 업체가 {len(unverified)}곳 있어요. 공식 목록에서 확인해 주세요.")
@@ -65,7 +64,7 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "days": trip["days"],
         "bookings": _bookings(store, trip_id),
         "sessions": [{k: x.get(k, "") for k in ("id", "title", "date", "start", "end", "place", "hall", "speaker", "topic")}
-                     for x in store.get_sessions(trip_id) if x.get("picked")],  # 고른 세션만 폰으로
+                     for x in store.get_sessions(trip_id)],  # 세션은 전부 폰으로 보내고, 갈지 말지는 폰에서 고른다
         "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다
     }
     companies = [

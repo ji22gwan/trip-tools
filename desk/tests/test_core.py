@@ -183,14 +183,10 @@ def test_sessions_reply_conflicts_and_package(store):
     merged, res = sessions.apply_reply("```json\n" + json.dumps(reply) + "\n```", [], days)
     assert res["added"] == 3 and res["outside"] == 1 and res["existing"] == 1
     by = {s["title"]: s for s in merged}
-    assert by["Cobots in Shipbuilding"]["verified"] and not by["AI Panel"]["verified"] and by["Bad time"]["start"] == "" and not any(s["picked"] for s in merged)
-    for s in merged[:2]:
-        s["picked"] = True
-    assert sessions.conflicts(merged) and "겹쳐요" in sessions.conflicts(merged)[0]
+    assert by["Cobots in Shipbuilding"]["verified"] and not by["AI Panel"]["verified"] and by["Bad time"]["start"] == ""
     store.set_sessions(t["id"], merged)
     assert any("확인하지 못한 세션" in w for w in package.check(store, t["id"]))
     _, data = package.build_package(store, t["id"])
     z = zipfile.ZipFile(io.BytesIO(data))
     trip_json = json.loads(z.read([n for n in z.namelist() if n.endswith("trip.json")][0]))
-    assert len(trip_json["sessions"]) == 2 and "sourceUrl" not in trip_json["sessions"][0]
-    assert "Bad time" not in json.dumps(trip_json)
+    assert len(trip_json["sessions"]) == 3 and "sourceUrl" not in trip_json["sessions"][0]  # 세션은 전부 폰으로

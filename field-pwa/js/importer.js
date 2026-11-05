@@ -134,7 +134,7 @@ export async function importTripPackage(file) {
     days: tripIn.days,
     glossary,
     hallPins: cleanPins(tripIn.hallPins),
-    sessions: cleanSessions(tripIn.sessions),
+    sessions: cleanSessions(tripIn.sessions).map((x) => ({ ...x, going: !!existingTrip?.sessions?.find((o) => o.id === x.id)?.going })), // 다시 받아도 '참석' 표시는 유지
     bookings: { flights: Array.isArray(tripIn.bookings?.flights) ? tripIn.bookings.flights : [], hotels: Array.isArray(tripIn.bookings?.hotels) ? tripIn.bookings.hotels : [] },
     createdAt: existingTrip?.createdAt || Date.now(),
   };

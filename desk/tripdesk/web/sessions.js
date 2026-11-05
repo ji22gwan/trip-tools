@@ -7,8 +7,6 @@ const time = (s) => (s.start ? s.start + (s.end ? "~" + s.end : "") : "시간 �
 export function sessionsTab(P, redraw) {
   const list = P.v.sessions || [];
   const save = async (next) => { P.v = await api("PUT", `/trips/${P.tid}/sessions`, next); redraw(); P.app.refreshSide(); };
-  const picked = list.filter((s) => s.picked).length;
-  const conflicts = (P.v.warnings || []).filter((w) => w.includes("시간이 겹쳐요"));
 
   const openPrompt = () => promptModal({
     title: "세미나·컨퍼런스 찾기 (AI 챗봇용)",
@@ -40,13 +38,12 @@ export function sessionsTab(P, redraw) {
       s ? h("button", { class: "btn danger", onclick: () => confirmBox("세션 삭제", `'${s.title}' 을(를) 지울까요?`, "삭제", () => guard(() => save(list.filter((x) => x.id !== s.id))), true) }, "삭제") : h("span"),
       h("button", { class: "btn primary", onclick: () => {
         if (!f.title.value.trim()) return toast("제목을 적어 주세요.", true);
-        const next = { ...(s || { source: "manual", picked: true }), title: f.title.value, date: f.date.value, start: f.start.value, end: f.end.value, place: f.place.value, hall: f.hall.value, speaker: f.speaker.value, topic: f.topic.value };
+        const next = { ...(s || { source: "manual" }), title: f.title.value, date: f.date.value, start: f.start.value, end: f.end.value, place: f.place.value, hall: f.hall.value, speaker: f.speaker.value, topic: f.topic.value };
         close(); guard(() => save(s ? list.map((x) => (x.id === s.id ? next : x)) : [...list, next]));
       } }, "저장")));
   });
 
   const row = (s) => h("div", { class: "crow", style: "display:flex;gap:10px;align-items:flex-start;padding:8px 4px;border-top:1px solid var(--line2)" },
-    h("button", { class: "cb" + (s.picked ? " on" : ""), role: "checkbox", "aria-checked": String(!!s.picked), "aria-label": s.title + " 선택", onclick: () => guard(() => save(list.map((x) => (x.id === s.id ? { ...x, picked: !s.picked } : x)))) }, s.picked ? "✓" : ""),
     h("div", { style: "width:92px;font-weight:800;font-size:13px;flex:none" }, time(s)),
     h("div", { class: "grow" },
       h("div", { style: "font-weight:700" }, s.title, " ", s.verified ? h("span", { class: "tag green" }, "공식 확인") : (s.source === "ai" ? h("span", { class: "tag" }, "AI 추정") : null)),
@@ -58,9 +55,8 @@ export function sessionsTab(P, redraw) {
   const dates = [...new Set(list.map((s) => s.date))].sort();
   return h("div", { class: "pad" },
     h("div", { class: "row", style: "justify-content:space-between;margin-bottom:8px" },
-      h("div", { class: "sub" }, `세미나·컨퍼런스·토론회 ${list.length}개 · 폰으로 보낼 것 ${picked}개`),
+      h("div", { class: "sub" }, `세미나·컨퍼런스·토론회 ${list.length}개 · 모두 폰으로 가요 (갈지 말지는 폰에서 골라요)`),
       h("div", { class: "row" }, h("button", { class: "btn primary", onclick: openPrompt }, "AI 프롬프트 만들기"), h("button", { class: "btn", onclick: () => editor(null) }, "+ 직접 추가"))),
-    conflicts.length ? h("div", { class: "msg warn" }, h("b", {}, "시간이 겹치는 세션"), h("ul", { style: "margin:4px 0 0;padding-left:18px" }, ...conflicts.map((w) => h("li", {}, w)))) : null,
     list.length ? h("div", {}, ...dates.map((d) => h("div", { style: "margin-bottom:14px" }, h("h4", { style: "margin:6px 0" }, fmtDay(d), h("span", { class: "sub" }, `  ${list.filter((s) => s.date === d).length}개`)), ...list.filter((s) => s.date === d).map(row))))
       : h("div", { class: "empty" }, h("b", {}, "아직 세션이 없어요"), h("div", {}, "공식 프로그램 페이지는 AI 챗봇으로 조사하고, 빠진 건 직접 추가하세요. 일정표 페이지가 동적이면 놓치는 항목이 있을 수 있어요.")));
 }

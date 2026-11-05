@@ -156,9 +156,9 @@ def build_markdown(r: dict, ppt: dict, photos: dict[str, list[str]]) -> str:
             L += _bul(v) if v else [f"- {NEED}"]
     ss = r.get("sessions", [])
     if ss:
-        L += ["", "### 참관 세션", "| 일시 | 세션 | 장소 | 비고 |", "|---|---|---|---|"]
+        L += ["", "### 참관한 세션", "| 일시 | 세션 | 장소 | 비고 |", "|---|---|---|---|"]
         for x in ss:
-            L.append(f"| {x['date'][5:]} {x['start']}{('~' + x['end']) if x['end'] else ''} | {_cell(x['title'])} | {_cell(' · '.join(y for y in (x['place'], x['hall'] and '홀 ' + x['hall']) if y))} | {x['speaker'] or ''} |")
+            L.append(f"| {x['date'][5:]} {x.get('start', '')}{('~' + x['end']) if x.get('end') else ''} | {_cell(x['title'])} | {_cell(' · '.join(y for y in (x.get('place'), x.get('hall') and '홀 ' + x['hall']) if y))} | {x.get('speaker') or ''} |")
     L += ["", "(배치도 이미지는 별도로 첨부)", "", "## 주요 확인 사항"]
     L.append(f"확인 목적: {r['purpose'] or NEED}")
     L += ["", "| 구분 | 업체 | 수준 | 확인 사항 |", "|---|---|---|---|"]

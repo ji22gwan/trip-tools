@@ -31,7 +31,7 @@ export async function renderList(root, ctx) {
   const todaySessions = (trip.sessions || []).filter((x) => x.date === date);
   const sessHtml = todaySessions.length
     ? `<div class="group-title">오늘 세션 · ${todaySessions.length}개</div><div class="list-card">${todaySessions
-        .map((x) => `<div class="item" data-sess="${esc(x.id)}" role="button" tabindex="0"><div class="item-main"><div class="item-name"><span style="color:var(--orange);font-weight:800">${esc(x.start || "시간 미정")}${x.end ? "~" + esc(x.end) : ""}</span> ${esc(x.title)}</div><div class="item-sub">${esc([x.place, x.hall && `홀 ${x.hall}`, x.speaker].filter(Boolean).join(" · ") || "장소 미정")}</div></div><span class="muted" aria-hidden="true">›</span></div>`)
+        .map((x) => `<div class="item" data-sess="${esc(x.id)}" role="button" tabindex="0"><div class="item-main"><div class="item-name"><span style="color:var(--orange);font-weight:800">${esc(x.start || "시간 미정")}${x.end ? "~" + esc(x.end) : ""}</span> ${esc(x.title)}${x.going ? ` <span class="pill pill-blue">참석</span>` : ""}</div><div class="item-sub">${esc([x.place, x.hall && `홀 ${x.hall}`, x.speaker].filter(Boolean).join(" · ") || "장소 미정")}</div></div><span class="muted" aria-hidden="true">›</span></div>`)
         .join("")}</div>`
     : "";
 
@@ -62,7 +62,7 @@ export async function renderList(root, ctx) {
   });
   root.querySelector("#addBtn").onclick = () => openAddCompany(ctx);
   root.querySelectorAll("[data-sess]").forEach((row) => {
-    row.onclick = () => openSession(todaySessions.find((x) => x.id === row.dataset.sess), trip);
+    row.onclick = () => openSession(todaySessions.find((x) => x.id === row.dataset.sess), trip, () => ctx.rerender());
   });
 
   root.querySelectorAll("[data-open]").forEach((row) => {

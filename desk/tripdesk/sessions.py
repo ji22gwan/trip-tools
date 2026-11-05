@@ -34,7 +34,7 @@ def clean_one(c: dict, days: list[str] | None = None, keep_id: bool = True) -> d
     s = {"id": "", "title": title, "date": date, "start": _hm(c.get("start")), "end": _hm(c.get("end")),
          "place": _s(c.get("place"), 120), "hall": _s(c.get("hall"), 12), "speaker": _s(c.get("speaker"), 160),
          "topic": _s(c.get("topic"), 300), "sourceUrl": url if ok else "", "verified": c.get("verified") is True and ok,
-         "picked": c.get("picked") is True, "source": _s(c.get("source"), 10) or "manual"}
+         "source": _s(c.get("source"), 10) or "manual"}
     s["id"] = _s(c.get("id"), 40) if keep_id and c.get("id") else "s-" + hashlib.sha1(key(s).encode()).hexdigest()[:8]
     return s
 
@@ -85,7 +85,7 @@ def apply_reply(text: str, existing: list[dict], days: list[str]) -> tuple[list[
         if isinstance(c, dict) and days and _s(c.get("date"), 10) not in days:
             outside += 1
             continue
-        s = clean_one({**c, "source": "ai", "picked": False}, days, keep_id=False) if isinstance(c, dict) else None
+        s = clean_one({**c, "source": "ai"}, days, keep_id=False) if isinstance(c, dict) else None
         if not s:
             continue
         if key(s) in have:
@@ -98,22 +98,3 @@ def apply_reply(text: str, existing: list[dict], days: list[str]) -> tuple[list[
         raise ResearchError("반영할 세션이 없어요. 날짜(YYYY-MM-DD)와 제목이 들어 있는지 확인해 주세요.")
     return clean_all(merged), {"added": added, "existing": dup, "outside": outside, "notes": _s(data.get("notes"), 300),
                               "unverified": sum(1 for c in raw if isinstance(c, dict) and c.get("verified") is not True)}
-
-
-def _mins(hm: str) -> int | None:
-    return int(hm[:2]) * 60 + int(hm[3:]) if hm else None
-
-
-def conflicts(sessions: list[dict]) -> list[str]:
-    """고른 세션끼리 시간이 겹치면 알려 준다."""
-    out = []
-    ps = [s for s in sessions if s.get("picked") and _mins(s.get("start"))is not None]
-    for i, a in enumerate(ps):
-        for b in ps[i + 1:]:
-            if a["date"] != b["date"]:
-                continue
-            a0, b0 = _mins(a["start"]), _mins(b["start"])
-            a1, b1 = _mins(a["end"]) or a0 + 30, _mins(b["end"]) or b0 + 30
-            if a0 < b1 and b0 < a1:
-                out.append(f"{a['date'][5:]} {a['start']} '{a['title'][:20]}' 와 '{b['title'][:20]}' 시간이 겹쳐요.")
-    return out

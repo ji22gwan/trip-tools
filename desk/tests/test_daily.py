@@ -290,3 +290,17 @@ def test_ppt_markdown_zip_and_keeps_after_final_edit(store, zpath):
     assert "추가 확인 필요" in md and "### 시사점" in md and "※ 1: 단기 적용 가능" in md and "## [별첨] 업체별 자료" in md
     with pytest.raises(Exception):
         pptdata.apply_reply("```json\n{}\n```", store, t["id"], set(), {})
+
+
+def test_final_lists_sessions_attended_on_phone(store, zpath):
+    t = prep(store, zpath)
+    sess = [{"id": "s-1", "title": "AI Panel", "date": "2026-11-24", "start": "10:30", "end": "11:15", "place": "Stage 2", "hall": "3A", "speaker": ""}]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        v = json.loads(zipfile.ZipFile(io.BytesIO(day_zip(t["id"]))).read("trip_SPS_2026/days/day1/visits.json"))
+        v["sessions"] = sess
+        z.writestr("trip_SPS_2026/days/day1/visits.json", json.dumps(v))
+    daily.import_zip(store, t["id"], zpath(buf.getvalue()))
+    fr = reports.build_final(store, t["id"])
+    assert fr["sessions"][0]["title"] == "AI Panel"
+    assert "참관한 세션" in reports.final_markdown(fr) and "10:30~11:15 · AI Panel (Stage 2 · 홀 3A)" in reports.final_markdown(fr)
