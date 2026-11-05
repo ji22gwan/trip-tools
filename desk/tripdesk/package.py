@@ -22,7 +22,7 @@ def picked(companies: list[dict]) -> list[dict]:
 def _bookings(store, trip_id) -> dict:
     """폰에 보여 줄 항공·숙소 기록 (후보 목록은 제외)."""
     tr = travel.get(store, trip_id)
-    return {"flights": tr["flights"], "hotels": tr["hotels"]}
+    return {"flights": [travel.decorate(f) for f in tr["flights"]], "hotels": tr["hotels"]}
 
 
 def check(store: Store, trip_id: str) -> list[str]:

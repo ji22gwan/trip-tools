@@ -69,15 +69,19 @@ FINAL = {
 
 TRAVEL = dict(origin="ICN", destination="FRA", minStars=3, maxStars=4)
 FLIGHTS = [
-    dict(direction="outbound", airline="데모에어", flightNo="DA101", **{"from": "ICN", "to": "FRA"}, depart="2026-11-23T13:10", arrive="2026-11-23T17:40",
-         confirmation="X7K2QD", amount=1450000, currency="KRW", baggage="수하물 23kg x1"),
-    dict(direction="return", airline="데모에어", flightNo="DA102", **{"from": "FRA", "to": "ICN"}, depart="2026-11-26T19:30", arrive="2026-11-27T13:50",
-         confirmation="X7K2QD", amount=0, currency="KRW", baggage=""),
+    dict(direction="outbound", confirmation="X7K2QD", amount=1450000, currency="KRW", segments=[
+        dict(flightNo="DA101", airline="데모에어", **{"from": "ICN", "to": "IST"}, depart="2026-11-22T23:40", arrive="2026-11-23T05:30", fromTerm="2", toTerm="1", cabin="Y", baggage="1PC", aircraft="Airbus A350"),
+        dict(flightNo="DA512", airline="데모에어", **{"from": "IST", "to": "FRA"}, depart="2026-11-23T08:15", arrive="2026-11-23T10:35", fromTerm="1", toTerm="1", cabin="Y", baggage="1PC")]),
+    dict(direction="return", confirmation="X7K2QD", currency="KRW", segments=[
+        dict(flightNo="DA513", airline="데모에어", **{"from": "FRA", "to": "VIE"}, depart="2026-11-26T13:20", arrive="2026-11-26T14:45", cabin="Y", baggage="1PC"),
+        dict(flightNo="DA730", airline="샘플항공", operatedBy="데모에어", **{"from": "VIE", "to": "IST"}, depart="2026-11-26T16:10", arrive="2026-11-26T19:40"),
+        dict(flightNo="DA102", airline="데모에어", **{"from": "IST", "to": "ICN"}, depart="2026-11-26T23:55", arrive="2026-11-27T17:30", cabin="Y", baggage="1PC")]),
 ]
 HOTELS = [dict(name="그랜드 데모 호텔", stars=4, address="Musterstraße 12, 데모시티", checkIn="2026-11-23", checkOut="2026-11-26", confirmation="HD-558210",
                amount=612, currency="EUR", freeCancelUntil="2026-11-20T12:00", site="Agoda", note="전시센터까지 지하철 12분")]
 CAND_FLIGHTS = [dict(airline="데모에어", flightNo="DA101", **{"from": "ICN", "to": "FRA"}, depart="2026-11-23T13:10", arrive="2026-11-23T17:40", stops="직항", price="약 145만원", sourceUrl="https://example.com/flights", note="도착 후 저녁 여유"),
-                dict(airline="샘플항공", flightNo="SA77", **{"from": "ICN", "to": "FRA"}, depart="2026-11-23T09:00", arrive="2026-11-23T16:20", stops="1회 경유(DOH)", price="약 118만원", sourceUrl="https://example.com/flights", note="경유 대기 2시간")]
+                dict(airline="샘플항공", flightNo="SA77 / SA81", **{"from": "ICN", "to": "FRA"}, depart="2026-11-23T09:00", arrive="2026-11-23T16:20", stops="1회 경유(DOH)", price="약 118만원", sourceUrl="https://example.com/flights", note="경유 대기 2시간",
+                     segments=[dict(flightNo="SA77", **{"from": "ICN", "to": "DOH"}, depart="2026-11-23T09:00", arrive="2026-11-23T13:10"), dict(flightNo="SA81", **{"from": "DOH", "to": "FRA"}, depart="2026-11-23T15:10", arrive="2026-11-23T16:20")])]
 CAND_HOTELS = [dict(name="그랜드 데모 호텔", stars=4, address="Musterstraße 12", distance="전시센터까지 지하철 12분", price="1박 약 204유로", cancellation="무료 취소 ~11/20", sourceUrl="https://example.com/hotel1", note="가용 확인됨"),
                dict(name="시티 샘플 인", stars=3, address="Beispielweg 3", distance="도보 8분", price="1박 약 139유로", cancellation="취소 불가", sourceUrl="https://example.com/hotel2", note="가용 미확인")]
 

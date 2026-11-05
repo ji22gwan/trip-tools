@@ -96,7 +96,7 @@ class Api:
     def travel_view(self, tid):
         trip = self.store.get_trip(tid)
         tr = travel.get(self.store, tid)
-        return {"travel": tr, "links": travel.links(trip, tr), "summary": travel.summary(tr, trip)}
+        return {"travel": dict(tr, flights=[travel.decorate(f) for f in tr["flights"]]), "links": travel.links(trip, tr), "summary": travel.summary(tr, trip)}
 
     @route("GET", r"/api/trips/(?P<tid>[^/]+)/travel")
     def get_travel(self, m, q, body):
@@ -117,9 +117,7 @@ class Api:
         if kind == "hotels":
             return {"prompt": travel.build_hotel_prompt(trip, tr)}
         if kind == "booking":
-            if not str(d.get("text") or "").strip():
-                raise StoreError("예약 확인 메일·문자 내용을 붙여 넣어 주세요.")
-            return {"prompt": travel.build_booking_prompt(d["text"])}
+            return {"prompt": travel.build_booking_prompt(str(d.get("text") or ""))}
         raise StoreError("알 수 없는 종류예요.")
 
     @route("POST", r"/api/trips/(?P<tid>[^/]+)/travel/paste")

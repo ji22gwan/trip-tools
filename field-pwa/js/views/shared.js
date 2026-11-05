@@ -215,6 +215,17 @@ export function openTranslate({ initialText = "", onInsert, micBusy } = {}) {
 
 // ---------- 항공·숙소 (Desk 에서 기록한 예약, 읽기 전용 · 오프라인에서도 열려요) ----------
 const fmtDT = (x) => String(x || "").replace("T", " ");
+const WD = ["일", "월", "화", "수", "목", "금", "토"];
+// 24시간제 표기: 11/23(월) 12:55
+const when = (dt) => { if (!dt) return ""; const [d, t] = String(dt).split("T"); const w = WD[new Date(d + "T00:00").getDay()]; return `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}(${w})${t ? " " + t : ""}`; };
+const span = (m) => (m == null ? "" : m < 0 ? "시각 확인" : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ""}`);
+const mins = (a, b) => (a && b && a.includes("T") && b.includes("T") ? Math.round((new Date(b) - new Date(a)) / 6e4) : null);
+// 옛 형식(편명이 바로 들어 있는 한 편짜리)도 구간 하나짜리 여정으로 본다
+const asJourney = (f) => {
+  const segs = Array.isArray(f.segments) && f.segments.length ? f.segments : [f];
+  const route = [segs[0].from]; segs.forEach((g) => { if (g.from && g.from !== route[route.length - 1]) route.push(g.from); route.push(g.to); });
+  return { ...f, segments: segs, route: f.route || route.filter(Boolean), layovers: f.layovers || segs.slice(1).map((n, i) => ({ at: segs[i].to, minutes: mins(segs[i].arrive, n.depart), airportChange: !!(segs[i].to && n.from && segs[i].to !== n.from), to: n.from })) };
+};
 const md = (x) => (x ? `${Number(x.slice(5, 7))}/${Number(x.slice(8, 10))}` : "");
 const money = (x) => (x.amount == null ? "" : `${Number(x.amount).toLocaleString()} ${esc(x.currency)}`);
 const nights = (a, b) => (a && b ? Math.round((new Date(b) - new Date(a)) / 864e5) : 0);
@@ -224,14 +235,21 @@ export function openBookings(trip) {
   const map = (q) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   const DIR = { outbound: "가는 편", return: "오는 편", other: "항공편" };
   const copyBtn = (v) => (v ? `<button class="btn btn-sm" data-copy="${esc(v)}" aria-label="예약번호 복사">복사</button>` : "");
-  const fl = [...flights].sort((a, b) => String(a.depart).localeCompare(String(b.depart))).map((f) => `
+  const segHtml = (j) => j.segments.map((g, i) => `
+      <div class="stack" style="gap:2px;padding:6px 0;border-top:1px solid var(--line,#e5e7eb)">
+        <div style="font-weight:800">${esc(g.mode === "ground" ? "지상 이동" : g.flightNo)} <span class="small muted" style="font-weight:400">${esc(g.airline || "")}${g.operatedBy ? " · 운항 " + esc(g.operatedBy) : ""}${g.aircraft ? " · " + esc(g.aircraft) : ""}</span></div>
+        <div class="small"><b>${esc(g.from)}</b>${g.fromTerm ? " T" + esc(g.fromTerm) : ""} ${esc(when(g.depart))}</div>
+        <div class="small">→ <b>${esc(g.to)}</b>${g.toTerm ? " T" + esc(g.toTerm) : ""} ${esc(g.arrive && g.depart && g.arrive.slice(0, 10) === g.depart.slice(0, 10) ? g.arrive.slice(11) : when(g.arrive))}</div>
+        ${g.cabin || g.baggage ? `<div class="small muted">${g.cabin ? "좌석등급 " + esc(g.cabin) : ""}${g.cabin && g.baggage ? " · " : ""}${g.baggage ? "수하물 " + esc(g.baggage) : ""}</div>` : ""}
+      </div>${j.layovers[i] ? `<div class="small" style="padding:4px 8px;background:var(--soft,#f3f4f6);border-radius:8px">↳ ${esc(j.layovers[i].at)} 경유 <b>${esc(span(j.layovers[i].minutes))}</b>${j.layovers[i].airportChange ? ` · 공항 변경 → ${esc(j.layovers[i].to)}` : ""}</div>` : ""}`).join("");
+  const fl = flights.map(asJourney).sort((a, b) => String(a.segments[0].depart).localeCompare(String(b.segments[0].depart))).map((f) => `
     <div class="card stack" style="gap:4px">
-      <div class="row" style="justify-content:space-between"><span class="pill pill-blue">${DIR[f.direction] || "항공편"}</span><span class="small muted">${esc(md(f.depart.slice(0, 10)))}</span></div>
-      <div style="font-weight:800;font-size:17px">${esc(f.flightNo)} ${esc(f.airline)}</div>
-      <div>${esc(f.from)} → ${esc(f.to)}</div>
-      <div class="small">${esc(fmtDT(f.depart))}${f.arrive ? " → " + esc(fmtDT(f.arrive)) : ""} <span class="muted">(현지 시각)</span></div>
+      <div class="row" style="justify-content:space-between"><span class="pill pill-blue">${DIR[f.direction] || "항공편"}</span><span class="small muted">${f.segments.length > 1 ? `경유 ${f.segments.length - 1}회` : "직항"}</span></div>
+      <div style="font-weight:800;font-size:18px">${esc(f.route.join(" → "))}</div>
+      <div class="small muted">현지 시각 · 24시간제</div>
+      ${segHtml(f)}
       <div class="row small" style="justify-content:space-between"><span>예약번호 <b>${esc(f.confirmation || "-")}</b></span>${copyBtn(f.confirmation)}</div>
-      ${f.baggage || f.amount != null ? `<div class="small muted">${f.baggage ? "수하물 " + esc(f.baggage) : ""}${f.baggage && f.amount != null ? " · " : ""}${money(f)}</div>` : ""}
+      ${f.amount != null ? `<div class="small muted">${money(f)}</div>` : ""}
       ${f.note ? `<div class="small muted">${esc(f.note)}</div>` : ""}
     </div>`).join("");
   const ho = [...hotels].sort((a, b) => String(a.checkIn).localeCompare(String(b.checkIn))).map((x) => `
@@ -241,7 +259,7 @@ export function openBookings(trip) {
       ${x.address ? `<a href="${map(x.name + " " + x.address)}" target="_blank" rel="noopener noreferrer" class="small">${esc(x.address)} · 지도 앱으로 열기</a>` : ""}
       <div class="small">체크인 ${esc(x.checkIn)} · 체크아웃 ${esc(x.checkOut)}</div>
       <div class="row small" style="justify-content:space-between"><span>예약번호 <b>${esc(x.confirmation || "-")}</b></span>${copyBtn(x.confirmation)}</div>
-      ${x.amount != null || x.freeCancelUntil ? `<div class="small muted">${money(x)}${x.amount != null && x.freeCancelUntil ? " · " : ""}${x.freeCancelUntil ? "무료취소 ~" + esc(fmtDT(x.freeCancelUntil)) : ""}</div>` : ""}
+      ${x.amount != null || x.freeCancelUntil ? `<div class="small muted">${money(x)}${x.amount != null && x.freeCancelUntil ? " · " : ""}${x.freeCancelUntil ? "무료취소 ~" + esc(when(x.freeCancelUntil)) : ""}</div>` : ""}
       ${x.note ? `<div class="small muted">${esc(x.note)}</div>` : ""}
     </div>`).join("");
   const body = fl || ho ? `${fl ? `<div class="small muted" style="font-weight:800">항공</div>${fl}` : ""}${ho ? `<div class="small muted" style="font-weight:800;margin-top:6px">숙소</div>${ho}` : ""}`

@@ -123,9 +123,16 @@ def fmt_money(totals: dict) -> str:
 def travel_lines(tv: dict) -> list[str]:
     """보고서에 넣을 이동·숙소·비용 줄. 기록이 없으면 빈 목록."""
     L = []
+    from . import travel
+
     for f in tv["flights"]:
+        d = travel.decorate(f)
+        segs = f["segments"]
         amt = f" · {f['amount']:,.0f} {f['currency']}" if f.get("amount") is not None else ""
-        L.append(f"항공 {f['flightNo']} {f['airline']} {f['from']}→{f['to']} {f['depart'].replace('T', ' ')}{amt}".replace("  ", " ").strip())
+        fn = "/".join(g["flightNo"] for g in segs if g["flightNo"])
+        via = f" (경유 {len(segs) - 1}회)" if len(segs) > 1 else ""
+        t0, t1 = segs[0]["depart"].replace("T", " "), segs[-1]["arrive"].replace("T", " ")
+        L.append(f"항공 {fn} {'→'.join(d['route'])}{via} {t0}{' → ' + t1 if t1 else ''}{amt}".replace("  ", " ").strip())
     for x in tv["hotels"]:
         amt = f" · {x['amount']:,.0f} {x['currency']}" if x.get("amount") is not None else ""
         L.append(f"숙소 {x['name']} {x['checkIn']}~{x['checkOut']}{amt}".strip())

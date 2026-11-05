@@ -149,7 +149,8 @@ def test_travel_links_prompts_and_records(store):
     assert travel.paste(store, tid, "booking", reply)["added"] == 2
     assert travel.paste(store, tid, "booking", reply) == {"added": 0, "existing": 2}  # 같은 예약은 중복으로 넣지 않는다
     tr = travel.get(store, tid)
-    assert tr["flights"][0]["flightNo"] == "LH713" and tr["flights"][0]["amount"] == 1250000 and tr["flights"][0]["depart"] == "2026-11-22T13:00"
+    g = tr["flights"][0]["segments"][0]  # 옛 형식(한 편짜리)도 구간 하나짜리 여정으로 받는다
+    assert g["flightNo"] == "LH713" and tr["flights"][0]["amount"] == 1250000 and g["depart"] == "2026-11-22T13:00"
     sm = travel.summary(tr, store.get_trip(tid))
     assert sm["totals"] == {"KRW": 1250000.0, "EUR": 420.0}
     assert any("오는 항공편" in x for x in sm["issues"]) and any("체크아웃" in x for x in sm["issues"])
@@ -190,3 +191,50 @@ def test_sessions_reply_conflicts_and_package(store):
     z = zipfile.ZipFile(io.BytesIO(data))
     trip_json = json.loads(z.read([n for n in z.namelist() if n.endswith("trip.json")][0]))
     assert len(trip_json["sessions"]) == 3 and "sourceUrl" not in trip_json["sessions"][0]  # 세션은 전부 폰으로
+
+
+def test_travel_multi_leg_journey_24h_and_dedup(store):
+    import io, json, zipfile
+    from tripdesk import package, reports, travel
+    t = store.create_trip("F", "V", "2026-11-24", "2026-11-26", "")
+    tid = t["id"]
+    reply = '''```json
+{"flights":[
+ {"direction":"outbound","confirmation":"smt2z5","segments":[
+   {"flightNo":"LH 713","airline":"Lufthansa","from":"icn","to":"FRA","depart":"23NOV26 12:55","arrive":"2026-11-23 6:40 PM","fromTerm":"1","cabin":"W","baggage":"1PC"},
+   {"flightNo":"LH148","from":"FRA","to":"NUE","depart":"2026-11-23T21:25","arrive":"2026-11-23T22:10"}]},
+ {"direction":"return","confirmation":"SMT2Z5","segments":[
+   {"flightNo":"LH3805","from":"NUE","to":"MUC","depart":"2026-11-27T11:45","arrive":"2026-11-27T14:00","mode":"ground"},
+   {"flightNo":"LH718","from":"MUC","to":"ICN","depart":"2026-11-27T16:05","arrive":"2026-11-28T11:15"}]}]}
+```'''
+    assert travel.paste(store, tid, "booking", reply)["added"] == 2
+    assert travel.paste(store, tid, "booking", reply) == {"added": 0, "existing": 2}
+    tr = travel.get(store, tid)
+    out = tr["flights"][0]
+    assert [g["flightNo"] for g in out["segments"]] == ["LH713", "LH148"] and out["confirmation"] == "SMT2Z5"
+    assert out["segments"][0]["depart"] == "2026-11-23T12:55" and out["segments"][0]["arrive"] == "2026-11-23T18:40"  # 24시간제로 통일
+    d = travel.decorate(out)
+    assert d["route"] == ["ICN", "FRA", "NUE"] and d["layovers"][0]["minutes"] == 165 and not d["layovers"][0]["airportChange"]
+    assert tr["flights"][1]["segments"][0]["mode"] == "ground"
+    assert not any("오는 항공편" in x or "가는 항공편" in x for x in travel.summary(tr, store.get_trip(tid))["issues"])
+    tr["flights"][0]["segments"][1]["depart"] = "2026-11-23T18:55"  # 경유 15분
+    travel.save(store, tid, {"flights": tr["flights"]})
+    assert any("15분" in x for x in travel.summary(travel.get(store, tid), store.get_trip(tid))["issues"])
+    lines = reports.travel_lines({"flights": travel.get(store, tid)["flights"], "hotels": [], "totals": {}})
+    assert "LH713/LH148 ICN→FRA→NUE (경유 1회) 2026-11-23 12:55" in lines[0]
+    _, data = package.build_package(store, tid)
+    z = zipfile.ZipFile(io.BytesIO(data))
+    pf = json.loads(z.read(next(n for n in z.namelist() if n.endswith("trip.json"))))["bookings"]["flights"][0]
+    assert pf["route"] == ["ICN", "FRA", "NUE"] and len(pf["segments"]) == 2
+
+
+def test_travel_legacy_flat_records_merge_into_journey(store):
+    from tripdesk import travel
+    t = store.create_trip("L", "V", "2026-11-24", "2026-11-26", "")
+    flat = [{"direction": "outbound", "flightNo": "LH1", "from": "ICN", "to": "FRA", "depart": "2026-11-23T10:00", "arrive": "2026-11-23T16:00", "confirmation": "AAA111"},
+            {"direction": "outbound", "flightNo": "LH2", "from": "FRA", "to": "NUE", "depart": "2026-11-23T18:00", "arrive": "2026-11-23T19:00", "confirmation": "AAA111"},
+            {"direction": "return", "flightNo": "LH9", "from": "NUE", "to": "ICN", "depart": "2026-11-27T10:00", "arrive": "2026-11-27T20:00", "confirmation": "AAA111"}]
+    out = travel.clean_flights(flat)
+    assert len(out) == 2 and len(out[0]["segments"]) == 2 and out[1]["direction"] == "return"
+    assert travel.build_booking_prompt("").startswith("첨부한 이미지") and "24시간제" in travel.build_booking_prompt("") and "AM/PM" in travel.build_booking_prompt("")
+    assert "예약 내용" in travel.build_booking_prompt("LH713 11/23")
