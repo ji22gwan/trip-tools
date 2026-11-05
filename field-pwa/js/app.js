@@ -128,8 +128,50 @@ function takeTokenFromLink() {
   return true;
 }
 
+// iPhone 은 '홈 화면에 추가'한 앱이 사파리와 저장공간이 따로라 토큰이 비어 열린다. 두 가지로 이어 준다(둘 다 최선의 방법).
+// 1) 쿠키: 홈 화면에 추가할 때 사파리 쿠키가 앱으로 복사되는 경우가 있다.
+// 2) 앱 매니페스트의 시작 주소에 ?t=토큰 을 넣어 두면, 그 상태에서 추가한 앱은 처음부터 토큰이 붙은 주소로 열린다.
+const COOKIE = "tf_t";
+function readTokenCookie() {
+  try {
+    const m = document.cookie.split("; ").find((x) => x.startsWith(COOKIE + "="));
+    const v = m ? decodeURIComponent(m.slice(COOKIE.length + 1)) : "";
+    return /^[A-Za-z0-9_-]{8,128}$/.test(v) ? v : "";
+  } catch {
+    return "";
+  }
+}
+function keepToken(token) {
+  try {
+    if (location.protocol === "https:") document.cookie = `${COOKIE}=${encodeURIComponent(token)}; max-age=31536000; path=/; SameSite=Lax; Secure`;
+  } catch { /* 무시 */ }
+}
+async function pinStartUrl(token) {
+  try {
+    const link = document.querySelector('link[rel="manifest"]');
+    if (!link || link.dataset.pinned === token) return;
+    const man = await (await fetch("manifest.webmanifest")).json();
+    const abs = (u) => new URL(u, location.href).href;
+    man.start_url = abs("./") + "?t=" + token;
+    man.scope = abs("./");
+    man.id = abs("./");
+    man.icons = (man.icons || []).map((i) => ({ ...i, src: abs(i.src) }));
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(man)], { type: "application/manifest+json" }));
+    link.dataset.pinned = token;
+  } catch { /* 없어도 앱은 동작 */ }
+}
+function bridgeToken() {
+  let s = db.loadSettings();
+  if (!s.token) {
+    const c = readTokenCookie();
+    if (c) { db.saveSettings({ token: c }); s = db.loadSettings(); }
+  }
+  if (s.token) { keepToken(s.token); pinStartUrl(s.token); }
+}
+
 async function boot() {
   const gotToken = takeTokenFromLink();
+  bridgeToken();
   await prefillServer();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW 등록 실패", e));

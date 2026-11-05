@@ -43,6 +43,7 @@
 | 4 | 폰 브라우저에서 **홈 화면에 추가** (iPhone: Safari → 공유 → 홈 화면에 추가) | 폰 |
 | 5 | `scripts/install-desk.sh` (Windows: `install-desk.bat`) 실행 → 앱 목록에 **Trip Desk** 아이콘이 생겨요 | 노트북 |
 
+- **iPhone 주의**: 홈 화면에 추가한 앱은 사파리와 저장공간이 따로라 토큰이 비어 열릴 수 있어요. 앱을 업데이트한 뒤에는 ① 설정 링크를 사파리에서 한 번 연 다음 ② 홈 화면에 추가하면 토큰이 따라가도록 해 두었어요(실제 iPhone 에서는 아직 확인하지 못했어요). 그래도 비어 있으면 홈 화면 앱의 **설정 → 토큰 칸에 설정 링크 전체를 붙여 넣기** 한 번이면 돼요.
 - 사람마다 **각자 자기 Cloudflare 계정**으로 설치해요. 저장공간과 무료 한도가 서로 섞이지 않아요.
 - 녹음을 글로 바꾸는 기능(Whisper)까지 쓰려면 `WHISPER=1 ./scripts/install-desk.sh` (Windows: `install-desk.bat whisper`). 용량이 크고, 설치하지 않아도 전사본을 직접 붙여 넣을 수 있어요.
 - **업데이트**: 저장소를 `git pull` 한 뒤 `install-desk` 와 `install-worker` 를 다시 실행하면 돼요(토큰은 그대로).
