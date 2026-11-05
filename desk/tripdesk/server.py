@@ -348,6 +348,16 @@ class Api:
     def cloud_status(self, m, q, body):
         return cloud.status()
 
+    @route("GET", r"/api/cloud/packages")
+    def cloud_packages(self, m, q, body):
+        names = {t["id"]: t["name"] for t in self.store.list_trips()} if hasattr(self.store, "list_trips") else {}
+        return {"packages": [dict(p, localName=names.get(p.get("id"), "")) for p in cloud.list_packages()]}
+
+    @route("DELETE", r"/api/cloud/packages/(?P<pid>[^/]+)")
+    def cloud_package_delete(self, m, q, body):
+        cloud.delete_package(urllib.parse.unquote(m["pid"]))
+        return {"packages": cloud.list_packages()}
+
     @route("POST", r"/api/trips/(?P<tid>[^/]+)/package/upload")
     def upload_package(self, m, q, body):
         """패키지를 만들어 Worker 보관함에 올린다. 폰에서 '서버에서 불러오기'로 받는다."""

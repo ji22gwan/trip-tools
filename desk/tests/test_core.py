@@ -308,3 +308,27 @@ def test_map_pdf_prerendered_images_go_into_package(store):
     store.add_map(tid, "plan2.pdf", b"%PDF-1.4 other")
     store.set_primary_map(tid, "plan2.pdf")
     assert store.render_state(tid)["needed"] is True  # 대표 지도가 바뀌면 다시 변환
+
+
+def test_cloud_package_list_and_delete(tmp_path, monkeypatch):
+    import json, threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from tripdesk import cloud
+    state = {"pk": [{"id": "t1", "name": "A", "size": 10, "at": 1}, {"id": "t2", "name": "B", "size": 20, "at": 2}], "auth": []}
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def _send(self, obj):
+            b = json.dumps(obj).encode(); self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+        def do_GET(self):
+            state["auth"].append(self.headers.get("Authorization")); self._send({"packages": state["pk"]})
+        def do_DELETE(self):
+            i = self.path.rsplit("/", 1)[1]; state["pk"] = [p for p in state["pk"] if p["id"] != i]; self._send({"ok": True})
+    srv = HTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+    home = tmp_path / "tt"; home.mkdir()
+    (home / "install.env").write_text(f'WORKER_URL="http://127.0.0.1:{srv.server_port}"\nTOKEN="tok"\nKV_ID="x"\n')
+    monkeypatch.setenv("TRIP_TOOLS_HOME", str(home)); monkeypatch.setenv("TRIPDESK_HOME", str(tmp_path / "td"))
+    assert [p["id"] for p in cloud.list_packages()] == ["t1", "t2"] and state["auth"][0] == "Bearer tok"
+    cloud.delete_package("t1")
+    assert [p["id"] for p in cloud.list_packages()] == ["t2"]
+    srv.shutdown()

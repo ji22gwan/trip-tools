@@ -71,3 +71,28 @@ def upload_package(trip_id: str, trip_name: str, data: bytes) -> dict:
         raise StoreError(msg) from None
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise StoreError(f"서버에 연결하지 못했어요: {getattr(e, 'reason', e)}") from None
+
+
+def _call(method: str, path: str) -> dict:
+    c = load_config()
+    if not (c["workerUrl"] and c["token"]):
+        raise StoreError("번역 서버 설치 기록을 찾지 못했어요. 이 컴퓨터에서 install-worker 를 실행했는지 확인해 주세요.")
+    req = urllib.request.Request(f"{c['workerUrl']}{path}", method=method, headers={"Authorization": f"Bearer {c['token']}", "User-Agent": "TripDesk/1"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        raise StoreError({401: "토큰이 맞지 않아요(서버가 거절).", 503: "서버에 패키지 보관함이 없어요."}.get(e.code, f"서버 응답 오류({e.code})")) from None
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise StoreError(f"서버에 연결하지 못했어요: {getattr(e, 'reason', e)}") from None
+
+
+def list_packages() -> list[dict]:
+    """서버 보관함에 올라가 있는 출장 패키지 목록(id, name, size, at)."""
+    return _call("GET", "/packages").get("packages", [])
+
+
+def delete_package(pkg_id: str) -> None:
+    if not pkg_id or "/" in pkg_id:
+        raise StoreError("지울 패키지를 알 수 없어요.")
+    _call("DELETE", f"/packages/{urllib.parse.quote(pkg_id)}")

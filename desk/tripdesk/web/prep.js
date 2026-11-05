@@ -328,6 +328,22 @@ function openPlanReport() {
   });
 }
 
+// ---------------- 서버 보관함 관리(올려 둔 패키지 지우기) ----------------
+function openCloudPackages() {
+  modal("서버 보관함", (m, close) => {
+    const box = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("div", { class: "sub" }, "불러오는 중…"));
+    const fmt = (t) => (t ? new Date(t).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "");
+    const draw = (list) => box.replaceChildren(...(list.length ? list.map((p) => h("div", { class: "row" },
+      h("div", { class: "grow" }, h("b", {}, p.name || p.localName || p.id), h("div", { class: "sub" }, `${fmt(p.at)} 업로드 · ${p.size ? (p.size / 1024).toFixed(0) + "KB" : ""}`)),
+      h("button", { class: "btn sm danger", onclick: () => confirmBox("서버에서 삭제", `'${p.name || p.id}' 패키지를 서버 보관함에서 지울까요? 이미 폰에 불러온 출장은 그대로 남아 있어요. 필요하면 다시 '폰으로 보내기'를 하면 돼요.`, "삭제",
+        () => guard(async () => { draw((await api("DELETE", `/cloud/packages/${encodeURIComponent(p.id)}`)).packages); toast("서버에서 지웠어요."); }), true) }, "삭제")))
+      : [h("div", { class: "sub" }, "서버에 올라간 패키지가 없어요.")]));
+    m.append(h("div", { class: "msg" }, "'폰으로 보내기 (서버)'로 올린 패키지 목록이에요. 올린 뒤 90일이 지나면 서버가 알아서 지우고, 여기서 바로 지울 수도 있어요. 이 컴퓨터의 출장 데이터와 폰에 이미 불러온 출장은 지워지지 않아요."), box,
+      h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn", onclick: close }, "닫기")));
+    api("GET", "/cloud/packages").then((r) => draw(r.packages)).catch((e) => box.replaceChildren(h("div", { class: "msg err" }, e.message)));
+  });
+}
+
 // ---------------- 업체 편집/추가 ----------------
 function openCompanyEditor(c) {
   modal(c ? "업체 편집" : "업체 직접 추가", (m, close) => {
@@ -438,7 +454,7 @@ function confirmPackage() {
       h("li", {}, "폰에서 Trip Field → 설정 → '새 출장' → '서버에서 불러오기'를 누르세요."),
       h("li", {}, "인터넷이 안 될 땐 ZIP 으로 내려받아 AirDrop·메일·USB 로 옮기세요."))), status);
     m.append(h("div", { class: "row", style: "justify-content:flex-end;flex-wrap:wrap" }, h("button", { class: "btn", onclick: close }, "취소"),
-      zipBtn, send));
+      h("button", { class: "btn", onclick: openCloudPackages }, "서버 보관함 관리"), zipBtn, send));
     m.append(mapStatus);
     renderMapForPhone(P.tid, (p, n) => { mapStatus.textContent = `지도를 폰용 이미지로 바꾸는 중… ${p}/${n}쪽 (처음 한 번만)`; })
       .then((did) => { mapStatus.textContent = did ? "지도를 폰용 이미지로 바꿨어요." : "지도 준비됨"; mapReady = true; refreshBtns(); })
