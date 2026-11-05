@@ -1,5 +1,6 @@
 import { pinsPanel } from "./pins.js";
 import { travelTab } from "./travel.js";
+import { sessionsTab } from "./sessions.js";
 import { h, api, toast, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
 
 const P = { tab: "cands", cat: "전체", q: "", v: null, tid: null, found: null };
@@ -94,10 +95,10 @@ function leftCol(s) {
 
 // ---------------- 오른쪽: 탭 ----------------
 function panel(s) {
-  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["travel", "항공·숙소"], ["gloss", "용어집"]];
+  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["gloss", "용어집"]];
   return h("div", { class: "panel" },
     h("div", { class: "tabs", role: "tablist" }, ...tabs.map(([k, label]) => h("button", { class: P.tab === k ? "on" : "", role: "tab", onclick: () => { P.tab = k; redraw(); } }, label))),
-    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "travel" ? travelTab(P) : glossTab(),
+    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : glossTab(),
   );
 }
 
@@ -148,10 +149,28 @@ function candsTab(s) {
       dayPicker(c),
       h("button", { class: "btn sm ghost", "aria-label": c.name + " 편집", onclick: () => openCompanyEditor(c), style: "padding:0" }, "✎"));
   });
+  const ids = new Set(shown.map((c) => c.id));
+  const selN = shown.filter((c) => c.picked !== false).length;
+  const setAll = (on) => guard(() => saveCompanies(P.v.companies.map((x) => (ids.has(x.id) ? { ...x, picked: on } : x))));
+  const openDelete = () => modal("업체 삭제", (m, close) => {
+    const off = shown.filter((c) => c.picked === false), on = shown.filter((c) => c.picked !== false);
+    const del = (list, label) => confirmBox("업체 삭제", `${label} ${list.length}곳을 목록에서 지울까요? 되돌릴 수 없어요.`, "삭제", () => { close(); guard(() => saveCompanies(P.v.companies.filter((x) => !list.some((d) => d.id === x.id)))); }, true);
+    m.append(h("div", { class: "msg" }, `지금 보이는 ${shown.length}곳(필터·검색 적용)이 대상이에요. 필터를 '전체'로 두면 모든 후보가 대상이에요.`),
+      h("div", { class: "stack", style: "display:flex;flex-direction:column;gap:8px" },
+        h("button", { class: "btn", disabled: !off.length, onclick: () => del(off, "선택하지 않은 후보") }, `선택 안 한 후보 ${off.length}곳 삭제 (정리)`),
+        h("button", { class: "btn danger", disabled: !on.length, onclick: () => del(on, "선택한 업체") }, `선택한 업체 ${on.length}곳 삭제`)),
+      h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn", onclick: close }, "닫기")));
+  });
+  const bulk = h("div", { class: "row", style: "padding:6px 2px;gap:8px" },
+    h("button", { class: "btn sm", disabled: selN === shown.length, onclick: () => setAll(true) }, `전체 선택 (${shown.length}곳)`),
+    h("button", { class: "btn sm", disabled: !selN, onclick: () => setAll(false) }, "전체 해제"),
+    h("button", { class: "btn sm danger", onclick: openDelete }, "삭제…"),
+    h("span", { class: "sub" }, `보이는 ${shown.length}곳 중 ${selN}곳 선택`));
   const perDay = P.v.trip.days.map((_, i) => cs.filter((c) => c.picked !== false && c.day === i + 1).length);
   return h("div", { style: "display:flex;flex-direction:column" },
     h("div", { class: "chips" }, ...chips.map(([name, n]) => h("button", { class: "chip" + (P.cat === name ? " on" : ""), onclick: () => { P.cat = name; redraw(); } }, `${name} ${n}`)),
       h("input", { type: "search", placeholder: "이름·이유 검색", value: P.q, style: "width:180px;height:34px;margin-left:auto", oninput: (e) => { P.q = e.target.value; const pos = e.target.selectionStart; redraw(); const el = P.root.querySelector('input[type=search]'); el.focus(); el.setSelectionRange(pos, pos); } })),
+    bulk,
     h("div", { class: "table" }, header, ...(rows.length ? rows : [h("div", { class: "empty" }, "조건에 맞는 업체가 없어요.")])),
     h("div", { class: "foot" },
       h("div", {}, h("b", {}, `선택 ${s.picked}곳` + perDay.map((n, i) => (n ? ` · Day ${i + 1} ${n}곳` : "")).join("")),

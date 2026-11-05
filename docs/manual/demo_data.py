@@ -170,3 +170,12 @@ PPT_REPLY = {
                     dict(title="협동로봇 추가 검증", points=["알파로보틱스 견적·납기 확인"]),
                     dict(title="이동로봇은 장기 검토", points=["적재 중량 요건 확인 후 재검토"])],
 }
+
+SESSIONS = [
+    dict(title="협동로봇과 조선 소조립 자동화", date="2026-11-24", start="11:00", end="11:45", place="Forum A", hall="1", speaker="가상 박사 (알파로보틱스)", topic="협동로봇을 소조립 용접 보조에 적용한 사례 발표", sourceUrl="https://example.com/program/s1", verified=True, picked=True, source="ai"),
+    dict(title="비전 센서 기반 용접선 추적 패널", date="2026-11-25", start="10:30", end="11:15", place="Tech Stage", hall="3A", speaker="가상 패널 4인", topic="3D 비전과 레이저 센서의 용접선 인식 비교 토론", sourceUrl="https://example.com/program/s2", verified=True, picked=True, source="ai"),
+    dict(title="산업 안전 인증 세미나", date="2026-11-25", start="10:45", end="11:30", place="Room 2", hall="3B", speaker="가상 인증기관", topic="협동 작업 영역 안전 인증 동향", sourceUrl="https://example.com/program/s3", verified=True, picked=True, source="ai"),
+    dict(title="이동로봇 현장 운영 사례", date="2026-11-25", start="14:00", end="14:45", place="Forum B", hall="4", speaker="가상 운영팀", topic="AMR 엘리베이터 연동과 운영 데이터", sourceUrl="https://example.com/program/s4", verified=True, picked=False, source="ai"),
+    dict(title="네트워킹 리셉션", date="2026-11-25", start="17:00", end="18:30", place="Hall 2 라운지", hall="2", speaker="", topic="", sourceUrl="", verified=False, picked=False, source="ai"),
+    dict(title="AI 에이전트와 디지털 트윈 키노트", date="2026-11-26", start="09:30", end="10:15", place="Main Stage", hall="2", speaker="가상 CTO", topic="Physical AI와 공장 운영 플랫폼", sourceUrl="https://example.com/program/s6", verified=True, picked=True, source="ai"),
+]

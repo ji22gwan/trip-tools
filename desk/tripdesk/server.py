@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import cloud, companies_io, daily, dayai, mapfinder, package, pptdata, reports, research, transcribe, travel
+from . import cloud, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
 from .store import Store, StoreError
 
 WEB = Path(__file__).parent / "web"
@@ -51,6 +51,7 @@ class Api:
             "trip": s.get_trip(tid),
             "companies": s.get_companies(tid),
             "glossary": s.get_glossary(tid),
+            "sessions": s.get_sessions(tid),
             "maps": [
                 {"name": p.name, "size": p.stat().st_size, "primary": p == s.primary_map(tid)} for p in s.list_maps(tid)
             ],
@@ -276,6 +277,29 @@ class Api:
         except research.ResearchError as e:
             raise StoreError(str(e)) from e
         return {"prompt": prompt, "keywords": kws}
+
+    # ---- 세션·행사(세미나·컨퍼런스) ----
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/prompt/sessions")
+    def sessions_prompt(self, m, q, body):
+        trip = self.store.get_trip(m["tid"])
+        return {"prompt": sessions.build_prompt(trip, trip.get("siteUrl", ""), [s["title"] for s in self.store.get_sessions(m["tid"])])}
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/paste/sessions")
+    def sessions_paste(self, m, q, body):
+        tid = m["tid"]
+        try:
+            merged, res = sessions.apply_reply(jbody(body).get("text", ""), self.store.get_sessions(tid), self.store.get_trip(tid)["days"])
+        except research.ResearchError as e:
+            raise StoreError(str(e)) from e
+        self.store.set_sessions(tid, merged)
+        v = self.trip_view(tid)
+        v["pasted"] = res
+        return v
+
+    @route("PUT", r"/api/trips/(?P<tid>[^/]+)/sessions")
+    def put_sessions(self, m, q, body):
+        self.store.set_sessions(m["tid"], sessions.clean_all(json.loads(body or b"[]"), self.store.get_trip(m["tid"])["days"]))
+        return self.trip_view(m["tid"])
 
     @route("PUT", r"/api/trips/(?P<tid>[^/]+)/keywords")
     def put_keywords(self, m, q, body):

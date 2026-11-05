@@ -1,7 +1,7 @@
 // 맵 화면: 공식 평면도(PDF/PNG)를 그대로 띄우고 이동·확대·축소만 한다.
 import * as db from "../db.js";
 import { esc, icons, pickFile, toast } from "../ui.js";
-import { isVisited, hallMarkers } from "../model.js";
+import { isVisited, hallMarkers, hallKey } from "../model.js";
 import { importMapFile } from "../importer.js";
 import { PanZoom } from "../panzoom.js";
 import { headerHtml, bindHeader, openAddCompany } from "./shared.js";
@@ -83,6 +83,13 @@ export async function renderMap(root, ctx) {
     layer.append(b);
     return [b, m];
   });
+  // 세션 상세의 '맵에서 홀 보기'로 들어오면 그 홀을 깜박여 보여 준다
+  let focus = "";
+  try { focus = sessionStorage.getItem("tf.focusHall") || ""; sessionStorage.removeItem("tf.focusHall"); } catch { /* 무시 */ }
+  if (focus) {
+    const hit = pins.find(([, m]) => m.key === hallKey(focus));
+    if (hit) { hit[0].classList.add("flash"); showHall(root, hit[1], day); } else toast(`홀 ${focus} 은(는) 오늘 방문할 업체가 없거나 맵에 위치가 없어요.`, 3500);
+  }
   const place = () => {
     const w = img.naturalWidth || map.width, hh = img.naturalHeight || map.height;
     for (const [b, m] of pins) b.style.transform = `translate(${pz.x + m.x * w * pz.scale}px, ${pz.y + m.y * hh * pz.scale}px) translate(-50%,-100%)`;

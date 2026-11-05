@@ -4,7 +4,7 @@ import json
 import re
 import zipfile
 
-from . import SCHEMA_VERSION, research
+from . import SCHEMA_VERSION, research, sessions as sess
 from . import travel
 from .store import Store, StoreError, hall_key
 
@@ -41,6 +41,10 @@ def check(store: Store, trip_id: str) -> list[str]:
         warns.append("패키지에 넣을 업체를 아직 고르지 않았어요. 현장에서 하나씩 추가해야 합니다.")
     elif any(c.get("day") is None for c in cs):
         warns.append(f"일정(일차)이 정해지지 않은 업체가 {sum(c.get('day') is None for c in cs)}곳 있어요.")
+    ss = store.get_sessions(trip_id)
+    warns += sess.conflicts(ss)
+    if any(x.get("picked") and not x.get("verified") for x in ss):
+        warns.append("공식 사이트에서 확인하지 못한 세션이 포함돼 있어요. 일정이 바뀌었을 수 있으니 확인해 주세요.")
     unverified = [c for c in cs if c.get("source") == "ai" and not c.get("verified")]
     if unverified:
         warns.append(f"AI가 찾았지만 참가 여부를 확인하지 못한 업체가 {len(unverified)}곳 있어요. 공식 목록에서 확인해 주세요.")
@@ -60,6 +64,8 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "purpose": trip.get("purpose", ""),
         "days": trip["days"],
         "bookings": _bookings(store, trip_id),
+        "sessions": [{k: x.get(k, "") for k in ("id", "title", "date", "start", "end", "place", "hall", "speaker", "topic")}
+                     for x in store.get_sessions(trip_id) if x.get("picked")],  # 고른 세션만 폰으로
         "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다
     }
     companies = [

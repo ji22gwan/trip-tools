@@ -82,7 +82,10 @@ def main():
         pg.click("#daySel") if False else None
         pg.goto(BASE + "/#/list"); pg.wait_for_timeout(1000)
         shot("phone-08-list", full=True)
-        pg.locator(".item").first.click(); pg.wait_for_timeout(1200)
+        pg.locator("[data-sess]").first.click(); pg.wait_for_timeout(700)
+        shot("phone-15-session-sheet")
+        pg.locator("[data-close]").first.click(); pg.wait_for_timeout(400)
+        pg.locator(".item:not([data-sess])").first.click(); pg.wait_for_timeout(1200)
         shot("phone-09-company", full=True)
         pg.click("#trBtn"); pg.wait_for_timeout(600)
         pg.fill("#trText", "What is the lead time for the 20 kg payload cobot?")

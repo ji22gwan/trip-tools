@@ -134,6 +134,7 @@ export async function importTripPackage(file) {
     days: tripIn.days,
     glossary,
     hallPins: cleanPins(tripIn.hallPins),
+    sessions: cleanSessions(tripIn.sessions),
     bookings: { flights: Array.isArray(tripIn.bookings?.flights) ? tripIn.bookings.flights : [], hotels: Array.isArray(tripIn.bookings?.hotels) ? tripIn.bookings.hotels : [] },
     createdAt: existingTrip?.createdAt || Date.now(),
   };
@@ -179,6 +180,15 @@ export async function importTripPackage(file) {
 
   db.setActiveTripId(trip.id);
   return { trip, added, updated, maps };
+}
+
+function cleanSessions(list) {
+  const t = (x, n = 200) => String(x ?? "").trim().slice(0, n);
+  const hm = (x) => (/^\d{2}:\d{2}$/.test(String(x)) ? String(x) : "");
+  return (Array.isArray(list) ? list : [])
+    .filter((s) => s && s.title && /^\d{4}-\d{2}-\d{2}$/.test(String(s.date)))
+    .map((s) => ({ id: t(s.id, 40) || t(s.title, 40) + s.date, title: t(s.title, 160), date: s.date, start: hm(s.start), end: hm(s.end), place: t(s.place, 120), hall: t(s.hall, 12), speaker: t(s.speaker, 160), topic: t(s.topic, 300) }))
+    .sort((a, b) => (a.date + (a.start || "99:99")).localeCompare(b.date + (b.start || "99:99")));
 }
 
 function cleanPins(p) {

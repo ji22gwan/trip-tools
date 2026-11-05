@@ -111,6 +111,22 @@ def main():
         pg.locator("text=용어집").first.click(); pg.wait_for_timeout(500)
         shot("desk-17-glossary")
 
+
+        # 세션·행사
+        call("PUT", f"/trips/{tid}/sessions", D.SESSIONS)
+        go(f"prep/{tid}"); pg.locator("button:has-text('세션·행사')").first.click(); pg.wait_for_timeout(700)
+        shot("desk-32-sessions", full=True)
+        pg.locator("button:has-text('AI 프롬프트 만들기')").last.click(); pg.wait_for_timeout(600)
+        shot("desk-33-sessions-prompt", clip_modal=True)
+        pg.locator(".modalbg").evaluate("e=>e.remove()")
+        pg.locator("button[aria-label$='편집']").first.click(); pg.wait_for_timeout(400)
+        shot("desk-34-session-edit", clip_modal=True)
+        pg.locator(".modalbg").evaluate("e=>e.remove()")
+        go(f"prep/{tid}")
+        pg.get_by_role("button", name="삭제…").click(); pg.wait_for_timeout(400)
+        shot("desk-35-candidates-delete", clip_modal=True)
+        pg.locator(".modalbg").evaluate("e=>e.remove()")
+
         # 패키지 확정
         go(f"prep/{tid}")
         pg.get_by_role("button", name="패키지 확정 · 폰으로 보내기").first.click(); pg.wait_for_timeout(900)

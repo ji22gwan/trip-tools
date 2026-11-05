@@ -251,3 +251,20 @@ export function openBookings(trip) {
     try { await navigator.clipboard.writeText(b.dataset.copy); toast("예약번호를 복사했어요."); } catch { toast("복사하지 못했어요. 번호를 길게 눌러 복사해 주세요.", 3500); }
   }));
 }
+
+// 세션(세미나·컨퍼런스) 상세: 시간·장소·연사·주제, 홀이 있으면 맵에서 보기
+export function openSession(x, trip) {
+  if (!x) return;
+  const when = `${x.date.slice(5).replace("-", "/")} ${x.start || "시간 미정"}${x.end ? "~" + x.end : ""}`;
+  const { el, close } = openSheet(`<div class="sheet-head"><h2 class="sheet-title">세션</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
+    <div class="stack">
+      <div style="font-weight:800;font-size:18px">${esc(x.title)}</div>
+      <div class="small"><b>${esc(when)}</b></div>
+      <div class="small">${esc([x.place, x.hall && `홀 ${x.hall}`].filter(Boolean).join(" · ") || "장소 미정")}</div>
+      ${x.speaker ? `<div class="small">연사 ${esc(x.speaker)}</div>` : ""}
+      ${x.topic ? `<div class="small muted" style="line-height:1.6">${esc(x.topic)}</div>` : ""}
+      ${x.hall ? `<button class="btn btn-primary btn-block" id="sessMap">맵에서 홀 ${esc(x.hall)} 보기</button>` : ""}
+    </div>`);
+  const b = el.querySelector("#sessMap");
+  if (b) b.onclick = () => { try { sessionStorage.setItem("tf.focusHall", x.hall); } catch { /* 무시 */ } close(); location.hash = "#/map"; };
+}

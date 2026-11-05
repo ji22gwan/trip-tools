@@ -166,3 +166,6 @@ button { cursor: pointer; }
 .hall-sheet{position:absolute;left:10px;right:10px;bottom:10px;max-height:45%;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 4px 18px #0004;padding:10px 14px;z-index:5}
 .hs-h{display:flex;gap:10px;align-items:center;font-size:15px}.hs-h span{color:var(--sub);font-size:13px}.hs-h button{margin-left:auto;width:36px;height:36px;border:0;background:none;font-size:22px}
 .hs-r{padding:9px 0;border-top:1px solid var(--line);font-weight:700;display:flex;justify-content:space-between}.hs-r small{color:var(--sub);font-weight:600}.hs-r.done{opacity:.55;text-decoration:line-through}
+
+.hall-pin.flash{animation:hpflash 1s ease-in-out 4}
+@keyframes hpflash{50%{outline:4px solid #fff;outline-offset:2px;filter:brightness(1.25)}}

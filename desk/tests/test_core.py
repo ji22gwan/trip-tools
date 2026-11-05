@@ -166,3 +166,31 @@ def test_trip_keywords_saved_and_cleaned(store):
     assert out["keywords"] == ["용접 로봇", "비전 센서"] and out["keywordCount"] == 30
     assert store.update_trip(t["id"], keywordCount=1000)["keywordCount"] == 30  # 범위 밖은 무시
     assert store.get_trip(t["id"])["keywords"] == ["용접 로봇", "비전 센서"]
+
+
+def test_sessions_reply_conflicts_and_package(store):
+    import io, json, zipfile
+    from tripdesk import package, sessions
+    t = store.create_trip("S", "V", "2026-11-24", "2026-11-26", "")
+    days = t["days"]
+    reply = {"sessions": [
+        {"title": "Cobots in Shipbuilding", "date": "2026-11-25", "start": "10:00", "end": "10:45", "place": "Forum", "hall": "3A", "sourceUrl": "https://x.example/p/1", "verified": True},
+        {"title": "AI Panel", "date": "2026-11-25", "start": "10:30", "end": "11:15", "place": "Stage 2", "sourceUrl": "", "verified": True},   # 근거 없음 → 미확인
+        {"title": "Outside", "date": "2026-12-01", "start": "10:00"},      # 기간 밖
+        {"title": "Bad time", "date": "2026-11-26", "start": "25:99"},     # 시간 오류 → 시간 미정
+        {"title": "Cobots in Shipbuilding", "date": "2026-11-25", "start": "10:00"},  # 중복
+    ]}
+    merged, res = sessions.apply_reply("```json\n" + json.dumps(reply) + "\n```", [], days)
+    assert res["added"] == 3 and res["outside"] == 1 and res["existing"] == 1
+    by = {s["title"]: s for s in merged}
+    assert by["Cobots in Shipbuilding"]["verified"] and not by["AI Panel"]["verified"] and by["Bad time"]["start"] == "" and not any(s["picked"] for s in merged)
+    for s in merged[:2]:
+        s["picked"] = True
+    assert sessions.conflicts(merged) and "겹쳐요" in sessions.conflicts(merged)[0]
+    store.set_sessions(t["id"], merged)
+    assert any("확인하지 못한 세션" in w for w in package.check(store, t["id"]))
+    _, data = package.build_package(store, t["id"])
+    z = zipfile.ZipFile(io.BytesIO(data))
+    trip_json = json.loads(z.read([n for n in z.namelist() if n.endswith("trip.json")][0]))
+    assert len(trip_json["sessions"]) == 2 and "sourceUrl" not in trip_json["sessions"][0]
+    assert "Bad time" not in json.dumps(trip_json)

@@ -89,6 +89,7 @@ def build_final(store: Store, tid: str) -> dict:
         "days": days, "companies": sorted(merged.values(), key=lambda m: (m["category"], m["name"])),
         "travel": _travel(store, tid, trip),
         "ppt": pptdata.load(store, tid),
+        "sessions": [x for x in store.get_sessions(tid) if x.get("picked")],
         "notVisited": not_visited, "checks": [dict(x, day=d["day"]) for d in days for x in d["checks"]],
         "final": {"overview": final.get("overview", ""), "highlights": final.get("highlights", []), "followups": final.get("followups", [])},
         "totals": {k: sum(d["stats"].get(k, 0) for d in days) for k in ("recordings", "memos", "photos", "audioSeconds")}
@@ -161,6 +162,12 @@ def day_markdown(r: dict) -> str:
     return "\n".join(L)
 
 
+def session_lines(r: dict) -> list[str]:
+    return [f"{x['date'][5:]} {x['start']}{('~' + x['end']) if x['end'] else ''} · {x['title']}"
+            + (f" ({x['place']}{' · 홀 ' + x['hall'] if x['hall'] else ''})" if x["place"] or x["hall"] else "") + (f" — {x['speaker']}" if x["speaker"] else "")
+            for x in r.get("sessions", [])]
+
+
 def final_markdown(r: dict) -> str:
     t = r["totals"]
     L = [f"# {r['tripName']} 출장 최종 보고서", f"{r['dates'][0]} ~ {r['dates'][-1]} · {r['venue']}".strip(" ·"), ""]
@@ -170,6 +177,9 @@ def final_markdown(r: dict) -> str:
     tl = travel_lines(r["travel"])
     if tl:
         L += ["## 이동·숙소·비용", *[f"- {x}" for x in tl], ""]
+    sl = session_lines(r)
+    if sl:
+        L += ["## 참관 세션(세미나·컨퍼런스)", *[f"- {x}" for x in sl], ""]
     f = r["final"]
     if f["overview"]:
         L += ["## 총평", f["overview"], ""]
@@ -296,6 +306,11 @@ def final_docx(store: Store, tid: str, r: dict) -> bytes:
     if tl:
         d.add_heading("이동·숙소·비용", 1)
         for x in tl:
+            d.add_paragraph(x, style="List Bullet")
+    sl = session_lines(r)
+    if sl:
+        d.add_heading("참관 세션(세미나·컨퍼런스)", 1)
+        for x in sl:
             d.add_paragraph(x, style="List Bullet")
     f = r["final"]
     for title, body in (("총평", f["overview"]),):

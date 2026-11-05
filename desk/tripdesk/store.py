@@ -161,6 +161,12 @@ class Store:
     def set_companies(self, trip_id: str, companies: list[dict]) -> None:
         self._write(self._dir(trip_id) / "companies.json", companies)
 
+    def get_sessions(self, trip_id: str) -> list[dict]:
+        return self._read(self._dir(trip_id) / "sessions.json", [])
+
+    def set_sessions(self, trip_id: str, sessions: list[dict]) -> None:
+        self._write(self._dir(trip_id) / "sessions.json", sessions)
+
     def get_glossary(self, trip_id: str) -> list[str]:
         g = self._read(self._dir(trip_id) / "glossary.json", {"terms": []})
         return g.get("terms", []) if isinstance(g, dict) else list(g)
