@@ -62,8 +62,10 @@ Rules:
 - If you cannot browse the web in this conversation, say so and stop. Do not answer from memory.
 - "up to {count}" is a maximum, not a target: if fewer genuinely match, return fewer. If the full list would not fit in one reply, return fewer complete entries rather than cutting the JSON off.
 - Never invent companies, hall numbers or booth numbers. Leave "hall" and "booth" empty when you did not see them in a source.
-- "verified": true only when a source you opened shows the company exhibits at this edition; otherwise false.
-- "sourceUrl": the page where you saw the company listed for this edition (empty if none).
+- MUST EXCLUDE any company whose participation in this edition you could not confirm on the official site (the official exhibitor directory / exhibitor list of this exact edition). Do not list unconfirmed companies at all, even if they look relevant.
+- INCLUDE companies that are similar or closely related to my keywords even when they do not fall perfectly into the keyword's category (adjacent technology, component or system suppliers). In "reason" say how it is similar, and in "matched" give the closest keyword. Rank exact matches first.
+- "verified": must be true for every company you return (it was confirmed on the official site).
+- "sourceUrl": the official-site page where you saw the company listed for this edition (required for every company).
 - "category": a short Korean category name (at most 8 different categories overall, e.g. 휴머노이드, 협동로봇, 용접 자동화, 비전·센서). Use the same name for similar companies.
 - "reason": one Korean sentence on how the company relates to the keywords.
 - "matched": which of my keywords it matched.
