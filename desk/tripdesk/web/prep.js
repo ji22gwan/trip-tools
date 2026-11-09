@@ -1,7 +1,7 @@
 import { pinsPanel, renderMapForPhone } from "./pins.js";
 import { travelTab } from "./travel.js";
 import { sessionsTab } from "./sessions.js";
-import { h, api, toast, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
+import { h, api, toast, spinner, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
 
 const P = { tab: "cands", cat: "전체", q: "", v: null, tid: null, found: null };
 const flagKey = (tid) => "tripdesk.pkg." + tid;
@@ -334,16 +334,37 @@ function openPlanReport() {
 // ---------------- 서버 보관함 관리(올려 둔 패키지 지우기) ----------------
 function openCloudPackages() {
   modal("서버 보관함", (m, close) => {
-    const box = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("div", { class: "sub" }, "불러오는 중…"));
+    const list = h("div", { style: "display:flex;flex-direction:column;gap:8px;min-height:60px" });
+    const wrap = h("div", { class: "busybox" }, list);
     const fmt = (t) => (t ? new Date(t).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "");
-    const draw = (list) => box.replaceChildren(...(list.length ? list.map((p) => h("div", { class: "row" },
+    // 작업 중에는 목록을 흐리게 하고 가운데에 돌아가는 원을 띄운다
+    const busy = (label) => {
+      wrap.classList.add("on"); wrap.append(h("div", { class: "busyov" }, spinner(label)));
+      return () => { wrap.classList.remove("on"); wrap.querySelector(".busyov")?.remove(); };
+    };
+    const draw = (items) => list.replaceChildren(...(items.length ? items.map((p) => h("div", { class: "row" },
       h("div", { class: "grow" }, h("b", {}, p.name || p.localName || p.id), h("div", { class: "sub" }, `${fmt(p.at)} 업로드 · ${p.size ? (p.size / 1024).toFixed(0) + "KB" : ""}`)),
-      h("button", { class: "btn sm danger", onclick: () => confirmBox("서버에서 삭제", `'${p.name || p.id}' 패키지를 서버 보관함에서 지울까요? 이미 폰에 불러온 출장은 그대로 남아 있어요. 필요하면 다시 '폰으로 보내기'를 하면 돼요.`, "삭제",
-        () => guard(async () => { draw((await api("DELETE", `/cloud/packages/${encodeURIComponent(p.id)}`)).packages); toast("서버에서 지웠어요."); }), true) }, "삭제")))
+      h("button", { class: "btn sm danger", onclick: () => confirmBox("서버에서 삭제", `'${p.name || p.id}' 패키지를 서버 보관함에서 지울까요? 이미 폰에 불러온 출장은 그대로 남아 있어요.`, "삭제", () => remove(p), true) }, "삭제")))
       : [h("div", { class: "sub" }, "서버에 올라간 패키지가 없어요.")]));
-    m.append(h("div", { class: "msg" }, "'폰으로 보내기 (서버)'로 올린 패키지 목록이에요. 올린 뒤 90일이 지나면 서버가 알아서 지우고, 여기서 바로 지울 수도 있어요. 이 컴퓨터의 출장 데이터와 폰에 이미 불러온 출장은 지워지지 않아요."), box,
-      h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn", onclick: close }, "닫기")));
-    api("GET", "/cloud/packages").then((r) => draw(r.packages)).catch((e) => box.replaceChildren(h("div", { class: "msg err" }, e.message)));
+    const load = async (label) => {
+      const done = busy(label);
+      try { draw((await api("GET", "/cloud/packages")).packages); }
+      catch (e) { list.replaceChildren(h("div", { class: "msg err" }, e.message), h("button", { class: "btn sm", style: "align-self:flex-start", onclick: () => load("다시 불러오는 중…") }, "다시 시도")); }
+      finally { done(); }
+    };
+    const remove = async (p) => {
+      const done = busy("서버에서 지우는 중…");
+      try { await api("DELETE", `/cloud/packages/${encodeURIComponent(p.id)}`); }
+      catch (e) { done(); toast(e.message || String(e), true); return; }
+      done();
+      toast("서버에서 지웠어요.");
+      await load("목록 새로고침 중…");   // 삭제가 끝나면 서버 목록을 다시 받아 자동으로 갱신
+    };
+    m.append(h("div", { class: "msg" }, "'폰으로 보내기 (서버)'로 올린 패키지 목록이에요. 올린 뒤 90일이 지나면 서버가 알아서 지우고, 여기서 바로 지울 수도 있어요. 이 컴퓨터의 출장 데이터와 폰에 이미 불러온 출장은 지워지지 않아요."),
+      wrap,
+      h("div", { class: "row", style: "justify-content:space-between" },
+        h("button", { class: "btn", onclick: () => load("새로고침 중…") }, "새로고침"), h("button", { class: "btn", onclick: close }, "닫기")));
+    load("불러오는 중…");
   });
 }
 

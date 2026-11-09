@@ -34,6 +34,9 @@ export async function api(method, path, body, opts = {}) {
   return j;
 }
 
+// 진행 중 표시용 돌아가는 원 (글자와 함께 쓴다)
+export const spinner = (label) => h("span", { class: "wait", role: "status" }, h("i", { class: "spin", "aria-hidden": "true" }), label ? h("span", {}, label) : null);
+
 export function toast(msg, err = false) {
   const t = h("div", { class: "toast" + (err ? " err" : "") }, msg);
   document.getElementById("toasts").append(t);
