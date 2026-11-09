@@ -337,3 +337,23 @@ def test_cloud_package_list_and_delete(tmp_path, monkeypatch):
     cloud.delete_package("t1")
     assert [p["id"] for p in cloud.list_packages()] == ["t2"]
     srv.shutdown()
+
+
+def test_core_keywords_flow(store):
+    from tripdesk import package, planreport
+    import io, json, zipfile
+    t = store.create_trip("핵심 엑스포", "센터", "2026-11-24", "2026-11-25", "")
+    tid = t["id"]
+    store.update_trip(tid, keywords=["휴머노이드", "용접"], coreKeywords=["휴머노이드", "빠질것"])
+    assert store.get_trip(tid)["coreKeywords"] == ["휴머노이드"]
+    store.update_trip(tid, keywords=["용접"])  # 키워드를 지우면 핵심에서도 빠진다
+    assert store.get_trip(tid)["coreKeywords"] == []
+    store.update_trip(tid, keywords=["휴머노이드", "용접"], coreKeywords=["휴머노이드"])
+    store.set_companies(tid, [
+        {"id": "c-1", "name": "Alpha", "category": "x", "booths": [{"hall": "1", "booth": "1-1", "day": 1}], "picked": True, "keywords": ["휴머노이드"], "reason": "r"},
+        {"id": "c-2", "name": "Beta", "category": "x", "booths": [{"hall": "2", "booth": "2-1", "day": 1}], "picked": True, "keywords": ["용접"], "reason": "r"}])
+    z = zipfile.ZipFile(io.BytesIO(package.build_package(store, tid)[1]))
+    comp = json.loads(z.read([n for n in z.namelist() if n.endswith("companies.json")][0]))
+    assert {c["name"]: c.get("core", False) for c in comp} == {"Alpha": True, "Beta": False}
+    md = planreport.build_markdown(store, tid)
+    assert "**Alpha** ★" in md and "**Beta** ★" not in md and "★ = 핵심 키워드(휴머노이드)" in md

@@ -39,7 +39,29 @@ def split_keywords(text: str) -> list[str]:
     return out[:12]
 
 
-def build_keyword_prompt(trip: dict, keywords: list[str], count: int = 20, site_url: str = "", exclude: list[str] | None = None) -> str:
+def core_of(keywords: list[str], core: list[str] | None) -> list[str]:
+    """핵심 키워드는 검색 키워드의 일부여야 한다(대소문자 무시). 키워드가 지워지면 핵심에서도 빠진다."""
+    have = {k.casefold(): k for k in keywords}
+    return [have[c.casefold()] for c in dict.fromkeys(str(x).strip() for x in (core or [])) if c.casefold() in have]
+
+
+def is_core(company_keywords: list[str], core: list[str] | None) -> bool:
+    """업체가 맞춘 키워드(AI 의 matched) 가 핵심 키워드와 같거나 서로 포함되면 핵심 업체."""
+    for k in company_keywords or []:
+        a = str(k).strip().casefold()
+        for c in core or []:
+            b = str(c).strip().casefold()
+            if a and b and (a == b or (len(b) >= 2 and b in a) or (len(a) >= 2 and a in b)):
+                return True
+    return False
+
+
+def mark_core(companies: list[dict], core: list[str] | None) -> list[dict]:
+    """화면·패키지·계획서용 사본에 core 표시를 붙인다(저장하지 않고 그때그때 계산)."""
+    return [dict(c, core=is_core(c.get("keywords"), core)) for c in companies]
+
+
+def build_keyword_prompt(trip: dict, keywords: list[str], count: int = 20, site_url: str = "", exclude: list[str] | None = None, core: list[str] | None = None) -> str:
     """AI 챗봇에 그대로 붙여 넣는 프롬프트. 답변 JSON 을 Desk 에 붙여 넣으면 읽을 수 있게 형식을 고정한다."""
     if not keywords:
         raise ResearchError("찾고 싶은 키워드를 한 개 이상 적어 주세요.")
@@ -51,6 +73,14 @@ def build_keyword_prompt(trip: dict, keywords: list[str], count: int = 20, site_
         skip = "\nAlready on my list (do not repeat these): " + "; ".join(exclude[:60]) + "\n"
     purpose = (trip.get("purpose") or "").strip()
     today = date.today().isoformat()
+    core = core_of(keywords, core)
+    corelines = ""
+    corerule = ""
+    if core:
+        corelines = "Core keywords (highest priority): " + ", ".join(core) + "\n"
+        corerule = ("\n- CORE keywords are the most important to me: " + ", ".join(core) + ". Search these first and deepest (all their related terms), list companies that match a core keyword FIRST, "
+                    "and do not drop a core-keyword company because of the shortlist limits (still leave out tiny or duplicate-type firms). "
+                    "In \"matched\" write the core keyword exactly as I wrote it, and start \"reason\" with [핵심] when the company matches a core keyword.")
     return f"""I am preparing a business visit to a trade fair. Find exhibitors of THIS edition that match my keywords.
 
 Trade fair: {trip['name']} ({year})
@@ -58,7 +88,7 @@ Venue: {trip.get('venue') or 'unknown'}
 Dates: {trip['days'][0]} to {trip['days'][-1]}
 Official site (if known): {site_url or 'unknown'}
 Keywords: {kw}
-Why I am visiting (Korean, optional context): {purpose or '(not given)'}
+{corelines}Why I am visiting (Korean, optional context): {purpose or '(not given)'}
 {skip}
 Task: use web search. Start from the official exhibitor directory / exhibitor search of this exact edition, then confirm with company pages or press releases. Give up to {count} companies, most relevant first. Do not return only literal keyword matches; build a varied list from these groups (roughly 50-60% from the first group, the rest spread over the others):
   1. [키워드] companies matching or closely related to my keywords.
@@ -82,7 +112,7 @@ Rules:
 - "sourceUrl": the official-site page where you saw the company listed for this edition (required for every company).
 - "category": a short Korean category name (at most 8 different categories overall, e.g. 휴머노이드, 협동로봇, 용접 자동화, 비전·센서). Use the same name for similar companies.
 - "reason": one Korean sentence, starting with the group label in brackets ([키워드], [글로벌], [최근 이슈] or [행사]), saying why this company is worth visiting; for [최근 이슈] and [행사] name the news or event briefly. A company can have several labels. Keep the variety of categories wide; do not fill the list with many near-identical companies.
-- "matched": which of my keywords it matched.
+- "matched": which of my keywords it matched.{corerule}
 
 Reply with ONLY one JSON object in a ```json code block and nothing else, so I can paste it into another tool:
 {{"companies":[{{"name":"","category":"","booths":[{{"hall":"","booth":""}}],"reason":"","matched":[""],"sourceUrl":"","verified":true}}],"notes":"Korean, 1-3 sentences: sources used and what you could not confirm"}}"""

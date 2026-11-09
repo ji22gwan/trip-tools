@@ -137,13 +137,15 @@ function candsTab(s) {
   }
   const cats = new Map();
   cs.forEach((c) => cats.set(c.category || "기타", (cats.get(c.category || "기타") || 0) + 1));
-  const chips = [["전체", cs.length], ["선택됨", s.picked], ...[...cats.entries()].sort((a, b) => b[1] - a[1])];
+  const coreN = cs.filter((c) => c.core).length;
+  const chips = [["전체", cs.length], ...(coreN ? [["★ 핵심", coreN]] : []), ["선택됨", s.picked], ...[...cats.entries()].sort((a, b) => b[1] - a[1])];
   const q = P.q.trim().toLowerCase();
   const shown = cs.filter((c) => {
     if (P.cat === "선택됨" && c.picked === false) return false;
+    if (P.cat === "★ 핵심") return !!c.core && (!q || (c.name + " " + c.category + " " + (c.reason || "")).toLowerCase().includes(q));
     if (P.cat !== "전체" && P.cat !== "선택됨" && (c.category || "기타") !== P.cat) return false;
     return !q || (c.name + " " + c.category + " " + (c.reason || "")).toLowerCase().includes(q);
-  });
+  }).sort((a, b) => (b.core ? 1 : 0) - (a.core ? 1 : 0));   // 핵심 키워드 업체를 위로 (그 안에서는 원래 순서)
   const header = h("div", { class: "tr head" }, h("div"), h("div", {}, "업체"), h("div", {}, "카테고리"), h("div", {}, "홀 · 부스"), h("div", {}, "선별 이유"), h("div", {}, "방문일"), h("div"));
   const rows = shown.map((c) => {
     const on = c.picked !== false;
@@ -153,8 +155,8 @@ function candsTab(s) {
     const bl = bs(c), multi = bl.length > 1;
     const locEl = h("div", { class: bl.some((b) => b.hall || b.booth) ? "" : "sub" }, ...bl.map((b) => h("div", {}, b.hall || b.booth ? `${b.hall || "?"} · ${b.booth || "?"}` : "미확인")));
     const why = [c.reason || c.preNotes?.split("\n")[0] || ""];
-    return h("div", { class: "tr" + (on ? "" : " off") }, cb,
-      h("div", { class: "nm" }, c.name, multi ? h("span", { class: "tag dup" }, `부스 ${bl.length}곳`) : null,
+    return h("div", { class: "tr" + (on ? "" : " off") + (c.core ? " core" : "") }, cb,
+      h("div", { class: "nm" }, c.core ? h("span", { class: "tag core", title: "핵심 키워드: " + (c.keywords || []).join(", ") }, "★ 핵심") : null, c.name, multi ? h("span", { class: "tag dup" }, `부스 ${bl.length}곳`) : null,
         c.source === "ai" ? (c.verified ? h("span", { class: "tag green" }, "참가 확인") : h("span", { class: "tag" }, "AI 추정")) : c.source === "csv" ? null : h("span", { class: "tag" }, "내가 추가")),
       h("div", {}, c.category || "기타"), locEl,
       h("div", { class: "why" }, why[0], c.sourceUrl ? h("span", {}, " ", h("a", { href: c.sourceUrl, target: "_blank", rel: "noopener noreferrer" }, "출처")) : null),
@@ -408,13 +410,19 @@ function openCompanyEditor(c) {
 function openKeywordPrompt() {
   // 저장된 키워드를 칩으로 보여 주고, 칩의 ×로 삭제·입력칸으로 추가한다. 바뀔 때마다 출장에 저장돼 다음에도 남는다.
   let kws = [...(P.v.trip.keywords || [])];
+  let core = [...(P.v.trip.coreKeywords || [])];   // ★ 표시한 핵심 키워드 — 여기에 맞는 업체는 중요도 높음
   const chips = h("div", { class: "row", style: "flex-wrap:wrap;gap:6px;margin-bottom:6px" });
   const kw = h("input", { placeholder: kws.length ? "키워드 추가 (쉼표나 Enter 로 확정)" : "예) 휴머노이드, 용접 로봇, 비전 센서 (쉼표나 Enter 로 확정)", value: "" });
   const count = h("select", {}, ...[10, 20, 30, 40, 50, 100].map((n) => h("option", { value: n }, `최대 ${n}곳`)));
   count.value = String(P.v.trip.keywordCount || 20);
-  const persist = () => api("PUT", `/trips/${P.tid}/keywords`, { keywords: kws, count: Number(count.value) }).then((r) => { P.v = r; }).catch(() => {});
-  const drawChips = () => chips.replaceChildren(...kws.map((k) => h("span", { class: "pill", style: "display:inline-flex;gap:6px;align-items:center" }, k,
-    h("button", { class: "btn sm ghost", "aria-label": k + " 삭제", style: "padding:0 4px;min-height:0", onclick: () => { kws = kws.filter((x) => x !== k); drawChips(); persist(); } }, "×"))));
+  const persist = () => api("PUT", `/trips/${P.tid}/keywords`, { keywords: kws, core, count: Number(count.value) }).then((r) => { P.v = r; redraw(); }).catch(() => {});
+  const drawChips = () => chips.replaceChildren(...kws.map((k) => {
+    const on = core.includes(k);
+    return h("span", { class: "pill" + (on ? " corepill" : ""), style: "display:inline-flex;gap:6px;align-items:center" },
+      h("button", { class: "btn sm ghost starbtn" + (on ? " on" : ""), "aria-pressed": String(on), "aria-label": k + (on ? " 핵심 해제" : " 핵심 키워드로 지정"), title: on ? "핵심 키워드 (누르면 해제)" : "핵심 키워드로 지정", style: "padding:0 4px;min-height:0", onclick: () => { core = on ? core.filter((x) => x !== k) : [...core, k]; drawChips(); persist(); } }, on ? "★" : "☆"),
+      k,
+      h("button", { class: "btn sm ghost", "aria-label": k + " 삭제", style: "padding:0 4px;min-height:0", onclick: () => { kws = kws.filter((x) => x !== k); core = core.filter((x) => x !== k); drawChips(); persist(); } }, "×"));
+  }));
   const commit = () => {
     const add = kw.value.split(/[,\n;/、]+/).map((x) => x.trim()).filter(Boolean);
     if (!add.length) return;
@@ -431,11 +439,11 @@ function openKeywordPrompt() {
     intro: "Desk 가 AI를 직접 부르지는 않아요. 키워드를 적으면 AI 챗봇에 붙여 넣을 프롬프트를 만들어 주고, AI 의 답을 붙여 넣으면 후보 목록에 쌓여요. 이미 목록에 있는 업체는 프롬프트에서 제외돼요.",
     auto: false,
     extraTop: (ctl) => h("div", { class: "row" },
-      h("div", { class: "grow field" }, h("label", {}, "찾고 싶은 키워드 (저장돼요 · × 로 삭제)"), chips, kw),
+      h("div", { class: "grow field" }, h("label", {}, "찾고 싶은 키워드 (☆ 를 눌러 핵심 키워드로 · × 로 삭제)"), chips, kw),
       h("div", { class: "field", style: "width:130px" }, h("label", {}, "업체 수"), count),
       h("button", { class: "btn primary", style: "align-self:flex-end", onclick: () => { commit(); last = kws.join(", "); ctl.load(); } }, "프롬프트 만들기")),
     getPrompts: async () => {
-      const r = await api("POST", `/trips/${P.tid}/prompt/exhibitors`, { keywords: kws.join(", "), count: Number(count.value) });
+      const r = await api("POST", `/trips/${P.tid}/prompt/exhibitors`, { keywords: kws.join(", "), core, count: Number(count.value) });
       return [r.prompt];
     },
     onPaste: async (text) => {

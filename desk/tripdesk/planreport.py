@@ -2,7 +2,7 @@
 1~2쪽 PDF 로 바꿔 쓰는 것을 전제로 짧게 만든다(docs/manual/md2pdf.sh)."""
 from datetime import date
 
-from . import booths, travel
+from . import booths, research, travel
 from .store import Store
 
 WD = "월화수목금토일"
@@ -29,7 +29,8 @@ def save(store: Store, tid: str, data: dict) -> dict:
 
 
 def _picked(store: Store, tid: str) -> list[dict]:
-    return [c for c in store.get_companies(tid) if c.get("picked") is not False]
+    cs = research.mark_core(store.get_companies(tid), store.get_trip(tid).get("coreKeywords"))
+    return [c for c in cs if c.get("picked") is not False]
 
 
 def defaults(store: Store, tid: str) -> dict:
@@ -113,10 +114,17 @@ def build_markdown(store: Store, tid: str) -> str:
     for c in sorted(cs, key=key):
         loc = "<br>".join(_loc(b) for b in c["booths"])
         why = _cell(c.get("reason") or (c.get("preNotes") or "").split("\n")[0])[:170]
-        mark = " ✓" if c.get("source") == "ai" and c.get("verified") else ""
+        mark = (" ✓" if c.get("source") == "ai" and c.get("verified") else "") + (" ★" if c.get("core") else "")
         L.append(f"| **{_cell(c['name'])}**{mark} | {_cell(c.get('category') or '기타')} | {loc} | {why} |")
     ai = [c for c in cs if c.get("source") == "ai"]
+    if any(c.get("core") for c in cs):
+        L_core = ", ".join((trip.get("coreKeywords") or []))
+        notes_core = f"★ = 핵심 키워드({L_core})에 해당하는 중요도 높은 업체."
+    else:
+        notes_core = ""
     notes = ["부스가 여러 곳인 업체는 홀 - 부스를 줄을 바꿔 모두 적었습니다."] if stops_n > len(cs) else []
+    if notes_core:
+        notes.append(notes_core)
     if ai:
         notes.append("✓ = 공식 사이트에서 이번 전시회 참가를 확인한 업체")
     if notes:

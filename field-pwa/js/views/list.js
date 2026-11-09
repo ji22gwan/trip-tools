@@ -23,7 +23,7 @@ export async function renderList(root, ctx) {
     return `
       <div class="item ${visited ? "done" : ""}" data-open="${c.id}" role="button" tabindex="0">
         <button class="check ${visited ? "on" : ""}" data-toggle="${c.id}" aria-label="${esc(c.name)} 방문 ${visited ? "취소" : "체크"}" aria-pressed="${visited}">${visited ? `<span style="color:#fff">${icons.check(18)}</span>` : ""}</button>
-        <div class="item-main"><div class="item-name">${esc(c.name)}${dupHtml.pill}</div><div class="item-sub">${esc([place, note].filter(Boolean).join(" · ") || "정보 없음")}</div>${dupHtml.line}</div>
+        <div class="item-main"><div class="item-name">${esc(c.name)}${c.core ? `<span class="pill core-pill">★ 핵심</span>` : ""}${dupHtml.pill}</div><div class="item-sub">${esc([place, note].filter(Boolean).join(" · ") || "정보 없음")}</div>${dupHtml.line}</div>
         <span class="muted" aria-hidden="true">›</span>
       </div>`;
   };

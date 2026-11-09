@@ -140,6 +140,10 @@ class Store:
                 if k and k not in out:
                     out.append(k)
             trip["keywords"] = out[:12]
+        if isinstance(fields.get("keywords"), list) or isinstance(fields.get("coreKeywords"), list):
+            core = fields["coreKeywords"] if isinstance(fields.get("coreKeywords"), list) else trip.get("coreKeywords", [])
+            have = {k.casefold(): k for k in trip.get("keywords", [])}
+            trip["coreKeywords"] = [have[c.casefold()] for c in dict.fromkeys(str(x).strip() for x in core) if c.casefold() in have]
         if isinstance(fields.get("keywordCount"), int) and 5 <= fields["keywordCount"] <= 100:
             trip["keywordCount"] = fields["keywordCount"]
         if "hallPins" in fields:

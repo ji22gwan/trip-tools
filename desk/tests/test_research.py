@@ -123,3 +123,12 @@ def test_keyword_prompt_reuses_earlier_findings():
     from tripdesk import research
     p = research.build_keyword_prompt({"name": "X", "days": ["2026-11-24"], "venue": "V"}, ["a"], 20)
     assert "do NOT search for it again" in p and "I cleared it" in p
+
+
+def test_core_keywords_prompt_and_matching():
+    p = research.build_keyword_prompt(TRIP, ["휴머노이드", "용접 로봇"], 20, "", [], ["휴머노이드", "없는키워드"])
+    assert "Core keywords (highest priority): 휴머노이드" in p and "[핵심]" in p and "없는키워드" not in p
+    assert "Core keywords" not in research.build_keyword_prompt(TRIP, ["휴머노이드"], 20)
+    assert research.core_of(["Humanoid", "AI"], ["humanoid", "x"]) == ["Humanoid"]
+    cs = research.mark_core([{"name": "A", "keywords": ["humanoid robot"]}, {"name": "B", "keywords": ["welding"]}, {"name": "C"}], ["Humanoid"])
+    assert [c["core"] for c in cs] == [True, False, False]

@@ -72,11 +72,13 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다
     }
     companies = []
-    for c in picked(store.get_companies(trip_id)):
+    for c in picked(research.mark_core(store.get_companies(trip_id), trip.get("coreKeywords"))):
         st = booths.stops(c)
         for x in st:
             item = {"id": x["id"], "name": c["name"], "category": c.get("category") or "기타", "hall": x["hall"], "booth": x["booth"], "day": x["day"],
                     "preNotes": research.package_note(c), "questions": c.get("questions", [])}
+            if c.get("core"):  # 핵심 키워드에 맞는 업체 — 폰에서 중요도 높음으로 보여 준다
+                item["core"] = True
             if len(st) > 1:  # 같은 업체의 다른 부스 — 폰에서 '중복 업체'로 알아볼 수 있게 한다
                 item["dup"] = {"n": len(st), "i": x["index"] + 1, "others": [{"id": y["id"], "hall": y["hall"], "booth": y["booth"], "day": y["day"]} for y in st if y is not x]}
             companies.append(item)
