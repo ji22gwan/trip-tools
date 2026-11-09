@@ -156,3 +156,9 @@ input.bad{border-color:#c0392b!important;background:#fdf0ee}
 .tag.dup{background:#FFF1D6;color:#8A5300}
 .card2.dupc{border-color:#E8A93A;background:#FFFBF2}
 .dupnote{font-size:12px;color:#8A5300;margin:2px 0}
+
+.toplead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toplead .btn{height:36px}
+button.stepbtn{background:none;border:0;font:inherit;color:inherit;cursor:pointer;padding:4px 6px;border-radius:8px}
+button.stepbtn:hover,button.chk-btn:hover{background:#EEF2F8}
+button.chk-btn{background:none;border:0;font:inherit;text-align:left;cursor:pointer;padding:4px 6px;margin:-4px -6px;border-radius:8px;width:calc(100% + 12px)}

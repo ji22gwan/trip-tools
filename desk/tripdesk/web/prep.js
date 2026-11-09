@@ -39,19 +39,23 @@ function draw() {
   const { trip } = P.v;
   const s = stats();
   const steps = [
-    ["출장 정보", true],
-    ["후보 수집", s.all > 0],
-    ["후보·일정", s.picked > 0 && s.dated === s.stops],
-    ["패키지 확정", getFlag(P.tid)],
+    ["출장 정보", true, () => { P.root.querySelector(".leftcol input")?.focus(); }],
+    ["후보 수집", s.all > 0, () => goTab("cands")],
+    ["후보·일정", s.picked > 0 && s.dated === s.stops, () => goTab(s.picked ? "plan" : "cands")],
+    ["패키지 확정", getFlag(P.tid), confirmPackage],
   ];
   const nowIdx = steps.findIndex((x) => !x[1]);
   const stepsEl = h("div", { class: "steps" });
-  steps.forEach(([label, done], i) => {
+  steps.forEach(([label, done, go], i) => {
     if (i) stepsEl.append(h("div", { class: "bar" }));
-    stepsEl.append(h("div", { class: "s " + (done ? "done" : i === nowIdx ? "now" : "") }, h("div", { class: "dot" }, done ? "✓" : String(i + 1)), label));
+    stepsEl.append(h("button", { class: "s stepbtn " + (done ? "done" : i === nowIdx ? "now" : ""), title: label + "(으)로 이동", onclick: go }, h("div", { class: "dot" }, done ? "✓" : String(i + 1)), label));
   });
   P.root.replaceChildren(
-    h("div", { class: "top" }, h("h1", {}, "사전조사"), stepsEl),
+    h("div", { class: "top" },
+      h("div", { class: "toplead" }, h("h1", {}, "사전조사"),
+        h("button", { class: "btn", onclick: openPlanReport }, "출장 계획서 (Markdown)"),
+        h("button", { class: "btn primary", onclick: confirmPackage }, "패키지 확정 · 폰으로 보내기")),
+      stepsEl),
     h("div", { class: "kpis" },
       kpi("후보 업체", s.all, "AI·CSV·직접 추가 합계"),
       kpi("선택한 업체", s.picked, s.unverified ? `참가 미확인 ${s.unverified}곳` : "폰으로 보낼 업체", true),
@@ -61,6 +65,7 @@ function draw() {
   );
 }
 
+const goTab = (k) => { P.tab = k; redraw(); P.root.querySelector(".panel")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 const kpi = (label, val, note, accent) => h("div", { class: "kpi" + (accent ? " accent" : "") }, h("span", {}, label), h("b", {}, val), h("em", {}, note));
 
 // ---------------- 왼쪽: 출장 정보 / 진행 ----------------
@@ -79,10 +84,10 @@ function leftCol(s) {
     P.app.refreshSide();
   }) }, "정보 저장");
   const checks = [
-    ["공식 사이트·지도 확보", s.maps > 0],
-    ["후보 업체 수집", s.all > 0],
-    ["후보 선별·일정 배분", s.picked > 0 && s.dated === s.stops],
-    ["패키지 확정 · 폰으로 보내기", getFlag(P.tid)],
+    ["공식 사이트·지도 확보", s.maps > 0, () => goTab("map")],
+    ["후보 업체 수집", s.all > 0, () => goTab("cands")],
+    ["후보 선별·일정 배분", s.picked > 0 && s.dated === s.stops, () => goTab(s.picked ? "plan" : "cands")],
+    ["패키지 확정 · 폰으로 보내기", getFlag(P.tid), confirmPackage],
   ];
   const now = checks.findIndex((c) => !c[1]);
   return h("div", { class: "leftcol" },
@@ -91,7 +96,7 @@ function leftCol(s) {
       h("div", { class: "row" }, save),
       h("button", { class: "btn primary", style: "height:46px;font-size:15px", onclick: openKeywordPrompt }, "AI 프롬프트 만들기")),
     h("div", { class: "card" }, h("h4", {}, "진행 상황"),
-      ...checks.map(([t, done], i) => h("div", { class: "check " + (done ? "done" : i === now ? "now" : "") }, h("i", {}, done ? "✓" : ""), t)),
+      ...checks.map(([t, done, go], i) => h("button", { class: "check chk-btn " + (done ? "done" : i === now ? "now" : ""), title: t + "(으)로 이동", onclick: go }, h("i", {}, done ? "✓" : ""), t)),
       h("div", { style: "height:1px;background:var(--line2)" }),
       h("div", { class: "row" },
         h("button", { class: "btn sm", onclick: () => { P.tab = "map"; redraw(); } }, "맵 PDF 직접 올리기"),
@@ -183,9 +188,7 @@ function candsTab(s) {
       h("div", {}, h("b", {}, `선택 ${s.picked}곳` + (s.stops > s.picked ? ` (방문 지점 ${s.stops}곳)` : "") + perDay.map((n, i) => (n ? ` · Day ${i + 1} ${n}곳` : "")).join("")),
         h("div", { class: "sub" }, s.stops - s.dated ? `일정 미배정 ${s.stops - s.dated}곳 · '일정 배분' 탭에서 한 번에 나눌 수 있어요` : "모든 선택 업체에 방문일이 있어요")),
       h("div", { class: "row" },
-        h("button", { class: "btn", onclick: () => openCompanyEditor(null) }, "+ 업체 직접 추가"), csvButton(),
-        h("button", { class: "btn", onclick: openPlanReport }, "출장 계획서 (Markdown)"),
-        h("button", { class: "btn primary", onclick: confirmPackage }, "패키지 확정 · 폰으로 보내기"))));
+        h("button", { class: "btn", onclick: () => openCompanyEditor(null) }, "+ 업체 직접 추가"), csvButton())));
 }
 
 function csvButton() {
