@@ -17,6 +17,7 @@ export function headerHtml(trip, day, { showGear = true } = {}) {
         </div>
         <div class="row" style="gap:0">
           <span class="pill pill-blue pill-offline" id="netPill">온라인</span>
+          <button class="icon-btn" id="localBtn" aria-label="식사 장소·현지 교통" style="font-size:20px">🍽</button>
           <button class="icon-btn" id="tripInfoBtn" aria-label="항공·숙소 예약" style="font-size:20px">✈</button>
           ${showGear ? `<button class="icon-btn" id="gearBtn" aria-label="설정">${icons.gear(24)}</button>` : ""}
         </div>
@@ -30,6 +31,7 @@ export function bindHeader(root, trip, ctx) {
     ctx.rerender();
   });
   root.querySelector("#tripInfoBtn")?.addEventListener("click", () => openBookings(trip));
+  root.querySelector("#localBtn")?.addEventListener("click", () => openLocal(trip));
   root.querySelector("#gearBtn")?.addEventListener("click", () => {
     location.hash = "#/settings";
   });
@@ -282,6 +284,40 @@ export function openBookings(trip) {
   el.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = async () => {
     try { await navigator.clipboard.writeText(b.dataset.copy); toast("예약번호를 복사했어요."); } catch { toast("복사하지 못했어요. 번호를 길게 눌러 복사해 주세요.", 3500); }
   }));
+}
+
+// ---------- 식사 장소·현지 교통 (Desk 에서 정리한 것, 읽기 전용) ----------
+// 현재 위치에서 목적지까지 구글 지도 길찾기를 연다 (출발지를 비우면 지도 앱이 '내 위치'를 쓴다)
+const dirUrl = (dest, mode) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
+export function openLocal(trip) {
+  const { meals = [], routes = [], passes = [], notes = "" } = trip.local || {};
+  const groups = new Map();
+  meals.forEach((m) => { const k = m.group || m.area || "기타"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); });
+  const mealHtml = [...groups].map(([g, ms]) => `<div class="small muted" style="font-weight:800;margin-top:6px">${esc(g)}</div>` + ms.map((m) => `
+    <a class="card stack" style="gap:3px;text-decoration:none;color:inherit" target="_blank" rel="noopener noreferrer" href="${dirUrl(m.mapQuery || m.name, "walking")}">
+      <div class="row" style="justify-content:space-between"><b>${m.fav ? "★ " : ""}${esc(m.name)}</b>${m.meal ? `<span class="pill pill-blue">${esc(m.meal)}</span>` : ""}</div>
+      <div class="small muted">${esc([m.cuisine, m.price].filter(Boolean).join(" · "))}</div>
+      ${m.where ? `<div class="small">📍 ${esc(m.where)}</div>` : ""}${m.hours ? `<div class="small">🕒 ${esc(m.hours)}</div>` : ""}
+      ${m.why ? `<div class="small">${esc(m.why)}</div>` : ""}${m.tip ? `<div class="small muted">팁: ${esc(m.tip)}</div>` : ""}
+      <div class="small" style="color:var(--blue,#2563eb);font-weight:700">🧭 내 위치에서 길찾기 (구글 지도)</div>
+    </a>`).join("")).join("");
+  const routeHtml = routes.map((r) => `
+    <div class="card stack" style="gap:3px">
+      <div class="row" style="justify-content:space-between"><b>${r.fav ? "★ " : ""}${esc(r.label || `${r.from} → ${r.to}`)}</b></div>
+      <div class="small">${esc([r.mode, r.line].filter(Boolean).join(" · "))}</div>
+      ${r.boardStation || r.alightStation ? `<div class="small">🚉 <b>${esc(r.boardStation || "?")}</b> 승차 → <b>${esc(r.alightStation || "?")}</b> 하차</div>` : ""}
+      <div class="small muted">${esc([r.durationMin ? `약 ${r.durationMin}분` : "", r.frequency, r.firstLast].filter(Boolean).join(" · "))}</div>
+      ${r.fare || r.ticket ? `<div class="small">💶 ${esc([r.fare, r.ticket].filter(Boolean).join(" · "))}</div>` : ""}
+      ${r.whereToBuy ? `<div class="small muted">표 구입: ${esc(r.whereToBuy)}</div>` : ""}${r.taxi ? `<div class="small muted">택시: ${esc(r.taxi)}</div>` : ""}
+      ${(r.steps || []).length ? `<ol class="small" style="margin:2px 0;padding-left:18px">${r.steps.map((t) => `<li>${esc(t)}</li>`).join("")}</ol>` : ""}
+      ${r.tips ? `<div class="small muted">팁: ${esc(r.tips)}</div>` : ""}
+      <a class="small" target="_blank" rel="noopener noreferrer" href="${dirUrl(r.to || r.alightStation || "", "transit")}">🧭 내 위치에서 대중교통 길찾기 (구글 지도)</a>
+    </div>`).join("");
+  const passHtml = passes.map((p) => `<div class="card stack" style="gap:2px"><b>${esc(p.name)}${p.price ? " · " + esc(p.price) : ""}</b>${p.valid ? `<div class="small muted">유효: ${esc(p.valid)}</div>` : ""}${p.whereToBuy ? `<div class="small muted">구입: ${esc(p.whereToBuy)}</div>` : ""}${p.note ? `<div class="small muted">${esc(p.note)}</div>` : ""}</div>`).join("");
+  const sec = (t, b) => (b ? `<div class="small muted" style="font-weight:800;margin-top:8px">${t}</div>${b}` : "");
+  const body = mealHtml || routeHtml || passHtml ? `${sec("식사 장소 — 누르면 내 위치에서 길찾기", mealHtml)}${sec("현지 교통", routeHtml)}${sec("표·패스", passHtml)}${notes ? `<div class="card small muted">${esc(notes)}</div>` : ""}`
+    : `<div class="card small muted">아직 정리된 식사 장소·교통 정보가 없어요. 노트북 Trip Desk 의 '식사·이동' 탭에서 정리하고 패키지를 다시 보내면 여기에 나와요.</div>`;
+  openSheet(`<div class="sheet-head"><h2 class="sheet-title">식사·이동</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div><div class="stack">${body}</div>`);
 }
 
 // 세션(세미나·컨퍼런스) 상세: 시간·장소·연사·주제, 홀이 있으면 맵에서 보기

@@ -1,5 +1,6 @@
 import { pinsPanel, renderMapForPhone } from "./pins.js";
 import { travelTab } from "./travel.js";
+import { localTab } from "./local.js";
 import { sessionsTab } from "./sessions.js";
 import { h, api, toast, spinner, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
 
@@ -106,10 +107,10 @@ function leftCol(s) {
 
 // ---------------- 오른쪽: 탭 ----------------
 function panel(s) {
-  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["gloss", "용어집"]];
+  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["local", "식사·이동"], ["gloss", "용어집"]];
   return h("div", { class: "panel" },
     h("div", { class: "tabs", role: "tablist" }, ...tabs.map(([k, label]) => h("button", { class: P.tab === k ? "on" : "", role: "tab", onclick: () => { P.tab = k; redraw(); } }, label))),
-    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : glossTab(),
+    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : P.tab === "local" ? localTab(P) : glossTab(),
   );
 }
 

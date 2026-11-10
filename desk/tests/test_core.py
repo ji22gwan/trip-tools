@@ -357,3 +357,41 @@ def test_core_keywords_flow(store):
     assert {c["name"]: c.get("core", False) for c in comp} == {"Alpha": True, "Beta": False}
     md = planreport.build_markdown(store, tid)
     assert "**Alpha** ★" in md and "**Beta** ★" not in md and "★ = 핵심 키워드(휴머노이드)" in md
+
+
+def test_local_meals_and_transport(store):
+    import io, json, zipfile
+    from tripdesk import local, package, research
+    t = store.create_trip("현지 엑스포", "Messe Nürnberg", "2026-11-24", "2026-11-26", "")
+    tid = t["id"]
+    from tripdesk import travel
+    travel.save(store, tid, {"flights": [
+        {"direction": "outbound", "segments": [
+            {"flightNo": "LH713", "from": "ICN", "to": "FRA", "depart": "2026-11-23T12:55", "arrive": "2026-11-23T18:40", "toTerm": "1"},
+            {"flightNo": "LH148", "from": "FRA", "to": "NUE", "depart": "2026-11-23T21:25", "arrive": "2026-11-23T22:10", "fromTerm": "1"}]}],
+        "hotels": [{"name": "Hotel Altstadt", "address": "Königstraße 1, Nürnberg", "checkIn": "2026-11-23", "checkOut": "2026-11-27"}]})
+    tg = local.targets(store, tid)
+    assert tg["airports"][0]["code"] == "FRA" and tg["airports"][0]["minutes"] == 165 and tg["arrival"]["airport"] == "NUE"
+    refs = [tg["airports"][0]["ref"], tg["hotels"][0]["ref"]]
+    p = local.build_meal_prompt(store, tid, refs, "한식 선호")
+    assert "대기 165분" in p and "Hotel Altstadt" in p and "한식 선호" in p and "22:10" in p and '"places"' in p
+    with pytest.raises(StoreError):
+        local.build_meal_prompt(store, tid, [])
+    tp = local.build_transport_prompt(store, tid, ["arr-hotel", "hotel-venue"])
+    assert "leg=arr-hotel" in tp and "leg=hotel-venue" in tp and "leg=hotel-dep" not in tp and "Messe Nürnberg" in tp and "무임승차" in tp and '"routes"' in tp
+    ans = "```json\n" + json.dumps({"places": [{"ref": refs[0], "name": "Cafe A", "meal": "점심", "price": "12유로", "sourceUrl": "javascript:x"}, {"ref": "evil", "name": "B"}, {"name": ""}]}) + "\n```"
+    assert local.paste(store, tid, "meals", ans) == {"added": 2, "updated": 0}
+    m = local.get(store, tid)["meals"]
+    assert m[0]["sourceUrl"] == "" and m[1]["ref"] == ""
+    local.save(store, tid, {"meals": [dict(m[0], fav=True), m[1]]})
+    assert local.paste(store, tid, "meals", ans) == {"added": 0, "updated": 2} and local.get(store, tid)["meals"][0]["fav"] is True
+    r1 = {"routes": [{"leg": "arr-hotel", "from": "NUE", "to": "Hotel", "mode": "지하철", "line": "U2", "durationMin": 12, "fare": "3.3유로", "steps": ["a", "b"]}], "passes": [{"name": "1일권", "price": "9유로"}]}
+    local.paste(store, tid, "transport", json.dumps(r1))
+    r1["routes"][0]["line"] = "U3"
+    local.paste(store, tid, "transport", json.dumps(r1))
+    d = local.get(store, tid)
+    assert [r["line"] for r in d["routes"]] == ["U3"] and len(d["passes"]) == 1 and d["routes"][0]["durationMin"] == 12
+    with pytest.raises(research.ResearchError):
+        local.paste(store, tid, "transport", "{}")
+    lc = package._local(store, tid)
+    assert lc["meals"][0]["fav"] and lc["meals"][0]["group"] == "FRA 공항 경유" and lc["meals"][0]["mapQuery"] == "Cafe A, FRA Airport" and lc["routes"][0]["line"] == "U3"

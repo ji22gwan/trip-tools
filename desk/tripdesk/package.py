@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 from . import SCHEMA_VERSION, research, sessions as sess
-from . import booths, travel
+from . import booths, local, travel
 from .store import Store, StoreError, hall_key
 
 
@@ -24,6 +24,18 @@ def _bookings(store, trip_id) -> dict:
     """폰에 보여 줄 항공·숙소 기록 (후보 목록은 제외)."""
     tr = travel.get(store, trip_id)
     return {"flights": [travel.decorate(f) for f in tr["flights"]], "hotels": tr["hotels"]}
+
+
+def _local(store, trip_id) -> dict:
+    """폰에 보여 줄 식사 장소·현지 교통(읽기 전용). 즐겨찾기를 앞에 둔다."""
+    d = local.get(store, trip_id)
+    t = local.targets(store, trip_id)
+    names = {a["ref"]: f"{a['code']} 공항 경유" for a in t["airports"]} | {h["ref"]: f"{h['name']} 주변" for h in t["hotels"]} | {"venue": f"행사장({t['venue']['name']})"}
+    ctx = {a["ref"]: f"{a['code']} Airport" for a in t["airports"]} | {h["ref"]: h["address"] or h["name"] for h in t["hotels"]} | {"venue": t["venue"]["name"]}
+    # mapQuery: 구글 지도가 가게를 정확히 찾도록 '가게 이름 + 근처 기준점(숙소 주소·공항·행사장)'만 쓴다
+    meals = [dict(m, group=names.get(m["ref"]) or m["area"] or "기타", mapQuery=f"{m['name']}, {ctx.get(m['ref'], m['area'])}".strip(", ")) for m in d["meals"]]
+    meals.sort(key=lambda m: not m["fav"])
+    return {"meals": meals, "routes": sorted(d["routes"], key=lambda r: not r["fav"]), "passes": d["passes"], "notes": d["notes"]}
 
 
 def check(store: Store, trip_id: str) -> list[str]:
@@ -67,6 +79,7 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "purpose": trip.get("purpose", ""),
         "days": trip["days"],
         "bookings": _bookings(store, trip_id),
+        "local": _local(store, trip_id),
         "sessions": [{k: x.get(k, "") for k in ("id", "title", "date", "start", "end", "place", "hall", "speaker", "topic")}
                      for x in store.get_sessions(trip_id)],  # 세션은 전부 폰으로 보내고, 갈지 말지는 폰에서 고른다
         "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다

@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import booths, cloud, planreport, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
+from . import booths, cloud, local, planreport, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
 from .store import Store, StoreError
 
 WEB = Path(__file__).parent / "web"
@@ -130,6 +130,38 @@ class Api:
         except research.ResearchError as e:
             raise StoreError(str(e))
         return dict(self.travel_view(m["tid"]), pasted=r)
+
+    def local_view(self, tid):
+        return {"local": local.get(self.store, tid), "targets": local.targets(self.store, tid), "legs": local.LEGS}
+
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/local")
+    def get_local(self, m, q, body):
+        return self.local_view(m["tid"])
+
+    @route("PUT", r"/api/trips/(?P<tid>[^/]+)/local")
+    def put_local(self, m, q, body):
+        local.save(self.store, m["tid"], jbody(body))
+        return self.local_view(m["tid"])
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/local/prompt")
+    def local_prompt(self, m, q, body):
+        d = jbody(body)
+        prefs, picks = str(d.get("prefs") or ""), [str(x) for x in (d.get("targets") or [])]
+        local.save(self.store, m["tid"], {"prefs": prefs})
+        if d.get("kind") == "meals":
+            return {"prompt": local.build_meal_prompt(self.store, m["tid"], picks, prefs)}
+        if d.get("kind") == "transport":
+            return {"prompt": local.build_transport_prompt(self.store, m["tid"], picks, prefs)}
+        raise StoreError("알 수 없는 종류예요.")
+
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/local/paste")
+    def local_paste(self, m, q, body):
+        d = jbody(body)
+        try:
+            r = local.paste(self.store, m["tid"], str(d.get("kind")), str(d.get("text") or ""))
+        except research.ResearchError as e:
+            raise StoreError(str(e))
+        return dict(self.local_view(m["tid"]), pasted=r)
 
     @route("PUT", r"/api/trips/(?P<tid>[^/]+)/hall-pins")
     def put_hall_pins(self, m, q, body):

@@ -25,6 +25,12 @@ function canvasToBlob(canvas, type = "image/png", quality) {
 }
 
 // PDF -> 페이지별 이미지. 아이폰 캔버스 한도를 넘지 않도록 픽셀 수를 제한한다.
+// 식사 장소·현지 교통(읽기 전용). 모양이 달라도 앱이 깨지지 않게 배열만 보장한다.
+function cleanLocal(x) {
+  const a = (v) => (Array.isArray(v) ? v.filter((i) => i && typeof i === "object") : []);
+  return { meals: a(x?.meals), routes: a(x?.routes), passes: a(x?.passes), notes: typeof x?.notes === "string" ? x.notes : "" };
+}
+
 export async function pdfToImages(arrayBuffer, { maxPages = 12, targetWidth = 3000, maxPixels = 8_000_000 } = {}) {
   const pdfjs = await loadPdfJs();
   const doc = await pdfjs.getDocument({ data: arrayBuffer }).promise;
@@ -137,6 +143,7 @@ export async function importTripPackage(file, onStage = () => {}) {
     hallPins: cleanPins(tripIn.hallPins),
     sessions: cleanSessions(tripIn.sessions).map((x) => ({ ...x, going: !!existingTrip?.sessions?.find((o) => o.id === x.id)?.going })), // 다시 받아도 '참석' 표시는 유지
     bookings: { flights: Array.isArray(tripIn.bookings?.flights) ? tripIn.bookings.flights : [], hotels: Array.isArray(tripIn.bookings?.hotels) ? tripIn.bookings.hotels : [] },
+    local: cleanLocal(tripIn.local),
     createdAt: existingTrip?.createdAt || Date.now(),
   };
   await db.put("trips", trip);
