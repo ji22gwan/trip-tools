@@ -35,7 +35,7 @@ def _local(store, trip_id) -> dict:
     # mapQuery: 구글 지도가 가게를 정확히 찾도록 '가게 이름 + 근처 기준점(숙소 주소·공항·행사장)'만 쓴다
     meals = [dict(m, group=names.get(m["ref"]) or m["area"] or "기타", mapQuery=f"{m['name']}, {ctx.get(m['ref'], m['area'])}".strip(", ")) for m in d["meals"]]
     meals.sort(key=lambda m: not m["fav"])
-    return {"meals": meals, "routes": sorted(d["routes"], key=lambda r: not r["fav"]), "passes": d["passes"], "notes": d["notes"]}
+    return {"meals": meals, "routes": sorted(d["routes"], key=lambda r: not r["fav"]), "passes": d["passes"], "foods": d["foods"], "notes": d["notes"]}
 
 
 def check(store: Store, trip_id: str) -> list[str]:

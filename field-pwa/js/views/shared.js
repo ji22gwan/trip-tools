@@ -290,7 +290,7 @@ export function openBookings(trip) {
 // 현재 위치에서 목적지까지 구글 지도 길찾기를 연다 (출발지를 비우면 지도 앱이 '내 위치'를 쓴다)
 const dirUrl = (dest, mode) => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
 export function openLocal(trip) {
-  const { meals = [], routes = [], passes = [], notes = "" } = trip.local || {};
+  const { meals = [], routes = [], passes = [], foods = [], notes = "" } = trip.local || {};
   const groups = new Map();
   meals.forEach((m) => { const k = m.group || m.area || "기타"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); });
   const mealHtml = [...groups].map(([g, ms]) => `<div class="small muted" style="font-weight:800;margin-top:6px">${esc(g)}</div>` + ms.map((m) => `
@@ -302,6 +302,11 @@ export function openLocal(trip) {
       ${m.why ? `<div class="small">${esc(m.why)}</div>` : ""}${m.tip ? `<div class="small muted">팁: ${esc(m.tip)}</div>` : ""}
       <div class="small" style="color:var(--blue,#2563eb);font-weight:700">🧭 내 위치에서 길찾기 (구글 지도)</div>
     </a>`).join("")).join("");
+  const foodHtml = foods.map((f) => `
+    <div class="card stack" style="gap:2px">
+      <div><b>${esc(f.name)}</b>${f.local ? ` <span class="muted small">${esc(f.local)}</span>` : ""}${f.price ? ` <span class="pill">${esc(f.price)}</span>` : ""}</div>
+      ${f.desc ? `<div class="small">${esc(f.desc)}</div>` : ""}${f.order ? `<div class="small">🍴 ${esc(f.order)}</div>` : ""}${f.where ? `<div class="small muted">📍 ${esc(f.where)}</div>` : ""}
+    </div>`).join("");
   const routeHtml = routes.map((r) => `
     <div class="card stack" style="gap:3px">
       <div class="row" style="justify-content:space-between"><b>${r.fav ? "★ " : ""}${esc(r.label || `${r.from} → ${r.to}`)}</b></div>
@@ -316,7 +321,7 @@ export function openLocal(trip) {
     </div>`).join("");
   const passHtml = passes.map((p) => `<div class="card stack" style="gap:2px"><b>${esc(p.name)}${p.price ? " · " + esc(p.price) : ""}</b>${p.valid ? `<div class="small muted">유효: ${esc(p.valid)}</div>` : ""}${p.whereToBuy ? `<div class="small muted">구입: ${esc(p.whereToBuy)}</div>` : ""}${p.note ? `<div class="small muted">${esc(p.note)}</div>` : ""}</div>`).join("");
   const sec = (t, b) => (b ? `<div class="small muted" style="font-weight:800;margin-top:8px">${t}</div>${b}` : "");
-  const body = mealHtml || routeHtml || passHtml ? `${sec("식사 장소 — 누르면 내 위치에서 길찾기", mealHtml)}${sec("현지 교통", routeHtml)}${sec("표·패스", passHtml)}${notes ? `<div class="card small muted">${esc(notes)}</div>` : ""}`
+  const body = mealHtml || foodHtml || routeHtml || passHtml ? `${sec("식사 장소 — 누르면 내 위치에서 길찾기", mealHtml)}${sec("현지 음식 가이드", foodHtml)}${sec("현지 교통", routeHtml)}${sec("표·패스", passHtml)}${notes ? `<div class="card small muted">${esc(notes)}</div>` : ""}`
     : `<div class="card small muted">아직 정리된 식사 장소·교통 정보가 없어요. 노트북 Trip Desk 의 '식사·이동' 탭에서 정리하고 패키지를 다시 보내면 여기에 나와요.</div>`;
   openSheet(`<div class="sheet-head"><h2 class="sheet-title">식사·이동</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div><div class="stack">${body}</div>`);
 }

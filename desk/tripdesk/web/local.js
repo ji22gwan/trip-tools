@@ -63,7 +63,7 @@ export function localTab(P) {
       title: "식사 장소 찾기 (AI 챗봇용)",
       intro: "고른 곳마다 따로 추천해 달라는 프롬프트예요. AI 챗봇에 붙여 넣고(웹 검색 켜기) 답변 전체를 아래에 붙여 넣으면 저장돼요.",
       getPrompts: async () => [(await api("POST", base + "/prompt", { kind: "meals", targets: [...picked.meals], prefs: prefs.value })).prompt],
-      onPaste: async (text) => { const r = await api("POST", base + "/paste", { kind: "meals", text }); draw(r); toast(`식사 장소 ${r.pasted.added}곳 추가` + (r.pasted.updated ? `, ${r.pasted.updated}곳 갱신` : "") + "했어요."); },
+      onPaste: async (text) => { const r = await api("POST", base + "/paste", { kind: "meals", text }); draw(r); toast(`식사 장소 ${r.pasted.added}곳 추가` + (r.pasted.updated ? `, ${r.pasted.updated}곳 갱신` : "") + "했어요." + (r.pasted.foods ? ` 현지 음식 ${r.pasted.foods}가지도 저장했어요.` : "")); },
     });
 
     const groups = new Map();
@@ -91,7 +91,14 @@ export function localTab(P) {
       h("div", { class: "msg" }, "경유 공항은 '대기 시간 안에 실제로 먹고 올 수 있는지'를, 숙소는 '걸어갈 수 있고 그 시각에 여는지'를 따져서 찾도록 프롬프트를 만들어요. 고른 곳마다 따로 정리돼요."),
       targets,
       h("div", { class: "row" }, h("button", { class: "btn primary", "data-act": "meals", disabled: !picked.meals.size, onclick: askMeals }, "식사 장소 프롬프트 만들기")),
-      ...(mealList.length ? mealList : [h("div", { class: "sub" }, "아직 저장된 식사 장소가 없어요.")]));
+      ...(mealList.length ? mealList : [h("div", { class: "sub" }, "아직 저장된 식사 장소가 없어요.")]),
+      (L.foods || []).length ? h("div", { class: "grp" },
+        h("div", { class: "row", style: "justify-content:space-between" }, h("b", { style: "font-size:15px" }, `현지 음식 가이드 · ${L.foods.length}가지`),
+          h("button", { class: "btn sm danger", onclick: () => confirmBox("목록 비우기", "현지 음식 가이드를 지울까요?", "비우기", () => put({ foods: [] }), true) }, "비우기")),
+        ...L.foods.map((f) => h("div", { class: "place" }, h("div", { class: "grow", style: "display:flex;flex-direction:column;gap:3px;min-width:0" },
+          h("div", {}, h("b", {}, f.name), f.local ? h("span", { class: "sub" }, "  " + f.local) : null, f.price ? h("span", { class: "pill", style: "margin-left:8px" }, f.price) : null),
+          f.desc ? h("div", {}, f.desc) : null, f.order ? h("div", {}, "주문: " + f.order) : null, f.where ? h("div", { class: "sub" }, f.where) : null),
+          h("button", { class: "btn sm ic danger", "aria-label": f.name + " 삭제", title: "삭제", onclick: () => put({ foods: L.foods.filter((x) => x.id !== f.id) }) }, ico("x", { width: 2.4 }))))) : null);
 
     // ---- 교통 ----
     const arr = T.arrival, dep = T.departure;

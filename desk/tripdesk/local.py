@@ -70,8 +70,15 @@ def _clean_pass(x) -> dict | None:
             "valid": _s(x.get("valid"), 160), "whereToBuy": _s(x.get("whereToBuy"), 160), "note": _s(x.get("note"), 300)}
 
 
+def _clean_food(x) -> dict | None:
+    if not isinstance(x, dict) or not _s(x.get("name"), 80):
+        return None
+    return {"id": _s(x.get("id"), 20) or "f-" + uuid.uuid4().hex[:8], "name": _s(x.get("name"), 80), "local": _s(x.get("local"), 80),
+            "desc": _s(x.get("desc"), 300), "order": _s(x.get("order"), 200), "where": _s(x.get("where"), 200), "price": _s(x.get("price"), 60)}
+
+
 def default_local() -> dict:
-    return {"prefs": "", "meals": [], "routes": [], "passes": [], "notes": ""}
+    return {"prefs": "", "meals": [], "routes": [], "passes": [], "foods": [], "notes": ""}
 
 
 def get(store: Store, tid: str) -> dict:
@@ -80,6 +87,7 @@ def get(store: Store, tid: str) -> dict:
     d["meals"] = [x for x in map(_clean_place, d["meals"]) if x]
     d["routes"] = [x for x in map(_clean_route, d["routes"]) if x]
     d["passes"] = [x for x in map(_clean_pass, d["passes"]) if x]
+    d["foods"] = [x for x in map(_clean_food, d["foods"]) if x]
     return d
 
 
@@ -93,6 +101,8 @@ def save(store: Store, tid: str, data: dict) -> dict:
         cur["meals"] = [x for x in map(_clean_place, data["meals"] or []) if x][:300]
     if "routes" in data:
         cur["routes"] = [x for x in map(_clean_route, data["routes"] or []) if x][:60]
+    if "foods" in data:
+        cur["foods"] = [x for x in map(_clean_food, data["foods"] or []) if x][:40]
     if "passes" in data:
         cur["passes"] = [x for x in map(_clean_pass, data["passes"] or []) if x][:30]
     store._write(store._dir(tid) / "local.json", cur)
@@ -136,7 +146,8 @@ def _hotel_line(h: dict) -> str:
 
 
 _MEAL_JSON = ('{"places":[{"ref":"(아래 \'대상\'의 ref 값을 그대로)","area":"FRA 공항 T1 / 호텔 주변","name":"가게 이름(현지 표기)","cuisine":"독일 가정식","meal":"점심",'
-              '"price":"1인 약 12~18유로","where":"보안검색 후 B구역 / 호텔에서 도보 6분","hours":"월~토 11:00~22:00, 일 휴무","why":"혼자 먹기 편하고 주문이 빠름","tip":"점심 피크 12시 전후엔 줄이 김","rating":"4.4","reviews":"약 1,200건","reviewSummary":"좋은 점: 빠른 서빙·양 많음 / 아쉬운 점: 피크 시간 대기","dishes":"대표 메뉴 2~3개","ratingSource":"Google 지도","checkedAt":"2026-11-11","sourceUrl":""}],"notes":""}')
+              '"price":"1인 약 12~18유로","where":"보안검색 후 B구역 / 호텔에서 도보 6분","hours":"월~토 11:00~22:00, 일 휴무","why":"혼자 먹기 편하고 주문이 빠름","tip":"점심 피크 12시 전후엔 줄이 김","rating":"4.4","reviews":"약 1,200건","reviewSummary":"좋은 점: 빠른 서빙·양 많음 / 아쉬운 점: 피크 시간 대기","dishes":"대표 메뉴 2~3개","ratingSource":"Google 지도","checkedAt":"2026-11-11","sourceUrl":""}],'
+              '"foods":[{"name":"음식 이름(한국어)","local":"현지 표기","desc":"어떤 음식인지, 한국인 입맛에서 어떤지","order":"주문 방법·곁들임·시켜 먹는 팁","where":"어디서 먹으면 좋은지(지역·가게 유형)","price":"보통 1인 가격대"}],"notes":""}')
 
 
 def build_meal_prompt(store: Store, tid: str, refs: list[str], prefs: str = "") -> str:
@@ -173,11 +184,15 @@ def build_meal_prompt(store: Store, tid: str, refs: list[str], prefs: str = "") 
         f"2. 숙소 주변: 숙소에서 도보 10~15분 안쪽(가까울수록 좋음)을 기준으로, 호텔 조식은 포함 여부를 모르니 저녁·늦은 저녁·간단한 아침/카페를 나눠 추천하세요. "
         + (f"출장 첫날 숙소에 {_hm(arr['time'])} 무렵 도착 예정이니 늦은 시각에도 여는 곳을 최소 1곳 포함하고, " if arr["time"] else "")
         + "현지 휴무일(예: 독일은 일요일·공휴일에 대부분 휴무)과 점심 휴게시간, 라스트 오더 시각을 출장 날짜 기준으로 확인해 주세요. 혼자 가기 편한 곳(바 좌석·빠른 회전)을 우선하세요.",
-        "3. 대상마다 3~5곳, 서로 종류가 겹치지 않게(현지식·가벼운 한 끼·아시안/한식·카페·마트/베이커리 등) 골라 주세요. 평점 숫자만 보지 말고 최근 리뷰의 영업 상태(폐업·이전 여부)를 확인하세요.",
+        "3. 선택지는 넉넉하게: 대상마다 숙소·행사장은 최소 8곳(가능하면 10곳), 경유 공항은 터미널·구역 안에서 먹을 수 있는 곳을 가능한 만큼(최소 5곳) 주세요. 한 대상 안에서 아래 종류를 골고루 섞고, 같은 체인이나 같은 종류만 반복하지 마세요. "
+        "(a) 현지 전통식 2곳 이상 (b) 현지인이 가는 평범한 식당·비어홀 (c) 10분 안에 끝나는 빠른 한 끼(포장·길거리·베이커리·푸드코트) (d) 한식·아시안·무난한 세계 음식 (e) 카페·아침·디저트 (f) 늦은 시간까지 여는 곳 (g) 마트·슈퍼(간단히 사 먹기) (h) 가끔은 분위기 좋은 한 곳. 가격대(저렴·보통·비쌈)도 섞어 주세요. "
+        "숙소·행사장 기준 거리는 도보 15분을 넘어도 대중교통 1~2정거장 이내면 포함하고, 그 경우 where 에 '어떻게 가는지'를 적어 주세요. 평점 숫자만 보지 말고 최근 리뷰의 영업 상태(폐업·이전 여부)를 확인하세요.",
         "4. 가격은 1인 기준 대략값(통화 표기)으로, 주소나 구역은 지도 앱에서 찾을 수 있게 적어 주세요. 확인하지 못한 영업시간·가격은 '미확인'이라고 쓰고 절대 지어내지 마세요. sourceUrl 에 근거(지도·공식 사이트) 주소를 넣어 주세요.",
         "4-1. 평판: 구글 지도 평점(rating, 숫자만 예: 4.4)과 리뷰 수(reviews), 최근 리뷰 위주의 요약(reviewSummary: '좋은 점: … / 아쉬운 점: …' 형식, 광고·과장 리뷰는 제외), 많이 언급되는 대표 메뉴(dishes), 출처(ratingSource)와 확인한 날짜(checkedAt)를 적어 주세요. "
         "리뷰 수가 매우 적거나(약 30건 미만) 최근 리뷰가 부정적이면 그 점을 reviewSummary 에 분명히 쓰세요. 지도·리뷰 페이지를 직접 확인하지 못했다면 rating·reviews 는 빈 문자열로 두세요. 기억에 의존한 숫자는 쓰지 마세요.",
-        "5. 각 장소에 '왜 추천하는지'(한 줄)와 주문·예약 팁을 넣고, 답변 본문에는 대상별 추천 순서와 한 줄 요약도 적어 주세요.",
+        f"5. 현지 음식 안내(foods): 이 출장지({t['venue']['name']} 및 숙소가 있는 도시·지역)에서 꼭 먹어 볼 만한 현지 대표 음식·음료·간식을 6~10개 소개해 주세요. 각 항목에 현지 표기, 어떤 음식인지(재료·맛·한국인 입맛 기준 호불호), 주문하는 법(메뉴판에서 뭐라고 찾는지, 곁들임, 1인분 양), 어디서 먹으면 좋은지, 보통 가격대를 적어 주세요. "
+        "그 음식을 먹을 수 있는 곳은 위 places 에서 가능하면 이어서 언급하세요. 계절 한정(11월이면 겨울 시장·제철 음식)이 있으면 포함하고, 알레르기·돼지고기·날것 등 한국인이 놀랄 만한 점도 짧게 적어 주세요.",
+        "6. 각 장소에 '왜 추천하는지'(한 줄)와 주문·예약 팁을 넣고, 답변 본문에는 대상별 추천 순서와 한 줄 요약도 적어 주세요.",
     ]
     return "\n".join(L) + travel._json_tail(_MEAL_JSON)
 
@@ -229,8 +244,16 @@ def paste(store: Store, tid: str, kind: str, text: str) -> dict:
     data = research.extract_json(text)
     cur = get(store, tid)
     if kind == "meals":
-        new = [x for x in map(_clean_place, data.get("places") or []) if x][:100]
-        if not new:
+        new = [x for x in map(_clean_place, data.get("places") or []) if x][:150]
+        foods = [x for x in map(_clean_food, data.get("foods") or []) if x][:30]
+        if foods:  # 현지 음식 소개는 이름이 같으면 새 답변으로 갱신
+            fk = {f["name"].casefold(): f for f in cur["foods"]}
+            for f in foods:
+                fk[f["name"].casefold()] = dict(f, id=fk[f["name"].casefold()]["id"]) if f["name"].casefold() in fk else f
+            cur["foods"] = list(fk.values())
+            save(store, tid, {"foods": cur["foods"]})
+            cur = get(store, tid)
+        if not new and not foods:
             raise research.ResearchError("식사 장소를 찾지 못했어요. 답변의 JSON 블록이 빠졌는지 확인해 주세요.")
         key = lambda x: (x["ref"], x["name"].casefold())
         idx = {key(x): i for i, x in enumerate(cur["meals"])}
@@ -245,7 +268,7 @@ def paste(store: Store, tid: str, kind: str, text: str) -> dict:
                 idx[k] = len(cur["meals"]) - 1
                 added += 1
         save(store, tid, {"meals": cur["meals"]})
-        return {"added": added, "updated": len(new) - added}
+        return {"added": added, "updated": len(new) - added, "foods": len(foods)}
     if kind == "transport":
         routes = [x for x in map(_clean_route, data.get("routes") or []) if x][:30]
         passes = [x for x in map(_clean_pass, data.get("passes") or []) if x][:20]

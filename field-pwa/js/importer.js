@@ -28,7 +28,7 @@ function canvasToBlob(canvas, type = "image/png", quality) {
 // 식사 장소·현지 교통(읽기 전용). 모양이 달라도 앱이 깨지지 않게 배열만 보장한다.
 function cleanLocal(x) {
   const a = (v) => (Array.isArray(v) ? v.filter((i) => i && typeof i === "object") : []);
-  return { meals: a(x?.meals), routes: a(x?.routes), passes: a(x?.passes), notes: typeof x?.notes === "string" ? x.notes : "" };
+  return { meals: a(x?.meals), routes: a(x?.routes), passes: a(x?.passes), foods: a(x?.foods), notes: typeof x?.notes === "string" ? x.notes : "" };
 }
 
 export async function pdfToImages(arrayBuffer, { maxPages = 12, targetWidth = 3000, maxPixels = 8_000_000 } = {}) {
