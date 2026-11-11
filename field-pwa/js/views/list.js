@@ -5,6 +5,7 @@ import * as db from "../db.js";
 import { headerHtml, bindHeader, openAddCompany, openSession, dupBadge } from "./shared.js";
 
 let filter = "today";
+let sessOpen = false;
 
 export async function renderList(root, ctx) {
   const { trip, day, companies } = ctx;
@@ -30,21 +31,37 @@ export async function renderList(root, ctx) {
 
   const date = trip.days[day - 1];
   const todaySessions = (trip.sessions || []).filter((x) => x.date === date);
-  const sessHtml = todaySessions.length
-    ? `<div class="group-title">오늘 세션 · ${todaySessions.length}개</div><div class="list-card">${todaySessions
-        .map((x) => `<div class="item" data-sess="${esc(x.id)}" role="button" tabindex="0"><div class="item-main"><div class="item-name"><span style="color:var(--orange);font-weight:800">${esc(x.start || "시간 미정")}${x.end ? "~" + esc(x.end) : ""}</span> ${esc(x.title)}${x.going ? ` <span class="pill pill-blue">참석</span>` : ""}</div><div class="item-sub">${esc([x.place, x.hall && `홀 ${x.hall}`, x.speaker].filter(Boolean).join(" · ") || "장소 미정")}</div></div><span class="muted" aria-hidden="true">›</span></div>`)
-        .join("")}</div>`
+  const sorted = [...todaySessions].sort((x, y) => (x.start || "99:99").localeCompare(y.start || "99:99"));
+  const now = new Date();
+  const nowHm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const isToday = date === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const next = sorted.find((x) => x.start && (!isToday || x.start >= nowHm)) || null;
+  const sessMeta = (x) => esc([x.place, x.hall && `홀 ${x.hall}`, x.speaker].filter(Boolean).join(" · ") || "장소 미정");
+  const nextHtml = next
+    ? `<button class="next-card" data-sess="${esc(next.id)}"><div class="next-t"><small>${isToday ? "다음" : "첫 세션"}</small>${esc(next.start)}</div>
+        <div class="item-main"><div class="item-name">${esc(next.title)}${next.going ? ` <span class="pill pill-blue">참석</span>` : ""}</div><div class="item-sub">${sessMeta(next)}</div></div>${icons.chevR(20)}</button>`
+    : "";
+  const rest = sorted.filter((x) => x !== next);
+  const shownSess = sessOpen ? rest : rest.slice(0, 2);
+  const sessHtml = rest.length
+    ? `<div class="group-title" style="display:flex;justify-content:space-between"><span>오늘 세션 · ${todaySessions.length}개</span></div><div class="list-card">${shownSess
+        .map((x) => `<div class="item" data-sess="${esc(x.id)}" role="button" tabindex="0"><div class="sess-t">${esc(x.start || "미정")}<small>${x.end ? "~" + esc(x.end) : ""}</small></div><div class="item-main"><div class="item-name">${esc(x.title)}${x.going ? ` <span class="pill pill-blue">참석</span>` : ""}</div><div class="item-sub">${sessMeta(x)}</div></div><span class="muted" aria-hidden="true">›</span></div>`)
+        .join("")}${rest.length > 2 ? `<button class="more-btn" id="sessMore" aria-expanded="${sessOpen}">${sessOpen ? "접기" : `세션 ${rest.length - 2}개 더 보기`}</button>` : ""}</div>`
     : "";
 
   root.innerHTML = `
     ${headerHtml(trip, day)}
-    <div class="header" style="padding-top:0;gap:8px">
-      <div class="row" style="justify-content:space-between"><div class="title" style="font-size:20px">방문 리스트</div>
-        <div class="seg"><button class="${filter === "today" ? "on" : ""}" data-f="today">오늘</button><button class="${filter === "all" ? "on" : ""}" data-f="all">전체</button></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700"><span>${planned.length}곳 중 ${done}곳 완료</span><span style="color:var(--orange)">현장 추가 ${onsite}곳</span></div>
-      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><div style="width:${pct}%"></div></div>
+    <div class="header" style="padding-top:0;gap:12px">
+      <div class="row" style="justify-content:space-between;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div class="prog-t"><span>업체 ${done}/${planned.length} 방문 완료</span><span class="amber">현장 추가 ${onsite}</span></div>
+          <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><div style="width:${pct}%"></div></div>
+        </div>
+        <div class="seg"><button class="${filter === "today" ? "on" : ""}" data-f="today">오늘</button><button class="${filter === "all" ? "on" : ""}" data-f="all">전체</button></div>
+      </div>
     </div>
     <div class="scroll">
+      ${nextHtml}
       ${sessHtml}
       ${
         groups.length
@@ -61,6 +78,7 @@ export async function renderList(root, ctx) {
       ctx.rerender();
     };
   });
+  root.querySelector("#sessMore")?.addEventListener("click", () => { sessOpen = !sessOpen; ctx.rerender(); });
   root.querySelector("#addBtn").onclick = () => openAddCompany(ctx);
   root.querySelectorAll("[data-sess]").forEach((row) => {
     row.onclick = () => openSession(todaySessions.find((x) => x.id === row.dataset.sess), trip, () => ctx.rerender());

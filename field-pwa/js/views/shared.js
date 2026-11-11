@@ -4,21 +4,21 @@ import * as db from "../db.js";
 import { addCompany, dayLabel } from "../model.js";
 import { LANGUAGES, translateText, translationConfigured, speechRecognitionClass, getLastTiming } from "../translate.js";
 
+const hdrDay = (trip, d) => { const [, m, dd] = (trip.days[d - 1] || "").split("-").map(Number); return m ? `Day ${d} · ${m}/${dd}` : `Day ${d}`; };
 export function headerHtml(trip, day, { showGear = true } = {}) {
   const options = trip.days
-    .map((_, i) => `<option value="${i + 1}" ${i + 1 === day ? "selected" : ""}>${esc(dayLabel(trip, i + 1))}</option>`)
+    .map((_, i) => `<option value="${i + 1}" ${i + 1 === day ? "selected" : ""}>${esc(hdrDay(trip, i + 1))}</option>`)
     .join("");
   return `
     <div class="header">
       <div class="header-row">
-        <div>
-          <div class="eyebrow">${esc(trip.name)}${trip.venue ? " · " + esc(trip.venue) : ""}</div>
+        <div class="hd-main">
+          <div class="eyebrow hd-eye"><span class="net-dot" id="netPill" role="img" aria-label="온라인"></span><span class="hd-trip">${esc(trip.name)}</span><span class="hd-off hidden" id="netOff">오프라인</span></div>
           <label class="day-select"><span class="hidden">날짜 선택</span><select id="daySel" aria-label="날짜 선택">${options}</select></label>
         </div>
-        <div class="row" style="gap:0">
-          <span class="pill pill-blue pill-offline" id="netPill">온라인</span>
-          <button class="icon-btn" id="localBtn" aria-label="식사 장소·현지 교통" style="font-size:20px">🍽</button>
-          <button class="icon-btn" id="tripInfoBtn" aria-label="항공·숙소 예약" style="font-size:20px">✈</button>
+        <div class="row" style="gap:8px">
+          <button class="hbtn" id="localBtn" aria-label="식사·이동 보기">${icons.utensils(22)}식사</button>
+          <button class="hbtn" id="tripInfoBtn" aria-label="항공·숙소 보기">${icons.plane(22)}항공</button>
           ${showGear ? `<button class="icon-btn" id="gearBtn" aria-label="설정">${icons.gear(24)}</button>` : ""}
         </div>
       </div>
@@ -37,8 +37,11 @@ export function bindHeader(root, trip, ctx) {
   });
   const pill = root.querySelector("#netPill");
   if (pill) {
+    const off = root.querySelector("#netOff");
     const update = () => {
-      pill.textContent = navigator.onLine ? "온라인" : "오프라인";
+      pill.classList.toggle("offline", !navigator.onLine);
+      pill.setAttribute("aria-label", navigator.onLine ? "온라인" : "오프라인");
+      off?.classList.toggle("hidden", navigator.onLine);
     };
     update();
     window.addEventListener("online", update);
@@ -293,37 +296,54 @@ export function openLocal(trip) {
   const { meals = [], routes = [], passes = [], foods = [], notes = "" } = trip.local || {};
   const groups = new Map();
   meals.forEach((m) => { const k = m.group || m.area || "기타"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); });
-  const mealHtml = [...groups].map(([g, ms], gi) => `<details class="mfold" ${gi < 2 ? "open" : ""}><summary class="small" style="font-weight:800;margin-top:6px;cursor:pointer;min-height:40px;display:flex;align-items:center;gap:6px">${esc(g)} <span class="muted">· ${ms.length}곳</span></summary>` + ms.map((m) => `
-    <a class="card stack" style="gap:3px;text-decoration:none;color:inherit" target="_blank" rel="noopener noreferrer" href="${dirUrl(m.mapQuery || m.name, "walking")}">
-      <div class="row" style="justify-content:space-between"><b>${m.fav ? "★ " : ""}${esc(m.name)}</b>${m.meal ? `<span class="pill pill-blue">${esc(m.meal)}</span>` : ""}</div>
-      <div class="small muted">${esc([m.cuisine, m.price].filter(Boolean).join(" · "))}</div>
-      ${m.rating || m.reviewSummary ? `<div class="small" style="${Number(m.rating) && Number(m.rating) < 4 ? "color:#b45309" : ""}">${m.rating ? `<b>★ ${esc(m.rating)}</b>${m.reviews ? ` (${esc(m.reviews)})` : ""}` : ""}${m.checkedAt ? ` <span class="muted">${esc(m.checkedAt)} 확인</span>` : ""}${m.reviewSummary ? `<div>${esc(m.reviewSummary)}</div>` : ""}${m.dishes ? `<div class="muted">대표 메뉴: ${esc(m.dishes)}</div>` : ""}</div>` : ""}
-      ${m.where ? `<div class="small">📍 ${esc(m.where)}</div>` : ""}${m.hours ? `<div class="small">🕒 ${esc(m.hours)}</div>` : ""}
-      ${m.why ? `<div class="small">${esc(m.why)}</div>` : ""}${m.tip ? `<div class="small muted">팁: ${esc(m.tip)}</div>` : ""}
-      <div class="small" style="color:var(--blue,#2563eb);font-weight:700">🧭 내 위치에서 길찾기 (구글 지도)</div>
-    </a>`).join("") + `</details>`).join("");
-  const foodHtml = foods.map((f) => `
-    <div class="card stack" style="gap:2px">
-      <div><b>${esc(f.name)}</b>${f.local ? ` <span class="muted small">${esc(f.local)}</span>` : ""}${f.price ? ` <span class="pill">${esc(f.price)}</span>` : ""}</div>
-      ${f.desc ? `<div class="small">${esc(f.desc)}</div>` : ""}${f.order ? `<div class="small">🍴 ${esc(f.order)}</div>` : ""}${f.where ? `<div class="small muted">📍 ${esc(f.where)}</div>` : ""}
-    </div>`).join("");
-  const routeHtml = routes.map((r) => `
-    <div class="card stack" style="gap:3px">
-      <div class="row" style="justify-content:space-between"><b>${r.fav ? "★ " : ""}${esc(r.label || `${r.from} → ${r.to}`)}</b></div>
+  const fold = (title, count, inner, open) => `<details class="gfold" ${open ? "open" : ""}><summary><span class="chev">${icons.chevR(18)}</span><b>${title}</b><span class="ct">${count}</span></summary>${inner}</details>`;
+  const mealCard = (m) => {
+    const low = Number(m.rating) && Number(m.rating) < 4;
+    const few = /^\d+/.test(m.reviews || "") && parseInt(m.reviews, 10) < 30;
+    return `<div class="mcard">
+      <div class="mc-top"><div class="mc-name">${m.fav ? `<span class="mc-fav" role="img" aria-label="즐겨찾기">${icons.star(16)}</span>` : ""}${esc(m.name)}</div>${m.meal ? `<span class="pill pill-blue">${esc(m.meal)}</span>` : ""}</div>
+      <div class="mc-rate">${m.rating ? `<span class="rate${low || few ? " low" : ""}">★ ${esc(m.rating)}${m.reviews ? ` <span>(${esc(m.reviews)})</span>` : ""}</span>` : ""}<span class="small muted">${esc([m.cuisine, m.price].filter(Boolean).join(" · "))}</span></div>
+      ${m.reviewSummary ? `<div class="small">${esc(m.reviewSummary)}</div>` : ""}
+      ${m.where || m.hours ? `<div class="mc-line">${icons.pin(16)}<span>${esc([m.where, m.hours].filter(Boolean).join(" · "))}</span></div>` : ""}
+      ${m.dishes || m.tip ? `<div class="small muted">${m.dishes ? `대표 메뉴 ${esc(m.dishes)}` : ""}${m.dishes && m.tip ? " · " : ""}${m.tip ? `팁 ${esc(m.tip)}` : ""}</div>` : ""}
+      ${m.why ? `<div class="small muted">${esc(m.why)}</div>` : ""}
+      ${m.checkedAt ? `<div class="tiny muted">평점 ${esc(m.checkedAt)} 확인${m.ratingSource ? " · " + esc(m.ratingSource) : ""}</div>` : ""}
+      <a class="go-btn" target="_blank" rel="noopener noreferrer" href="${dirUrl(m.mapQuery || m.name, "walking")}">${icons.compass(18)}내 위치에서 길찾기</a>
+    </div>`;
+  };
+  const foodCard = (f) => `<div class="mcard">
+      <div class="mc-top"><div class="mc-name">${esc(f.name)}${f.local ? ` <span class="muted small" style="font-weight:600">${esc(f.local)}</span>` : ""}</div>${f.price ? `<span class="pill pill-blue">${esc(f.price)}</span>` : ""}</div>
+      ${f.desc ? `<div class="small">${esc(f.desc)}</div>` : ""}${f.order ? `<div class="small"><b>주문</b> ${esc(f.order)}</div>` : ""}${f.where ? `<div class="mc-line">${icons.pin(16)}<span>${esc(f.where)}</span></div>` : ""}
+    </div>`;
+  // 식사 장소와 현지 음식은 한 목록: 장소 그룹들 뒤에 '이 지역 대표 음식' 그룹
+  const mealBody = [...groups].map(([g, ms], gi) => fold(esc(g), `${ms.length}곳`, ms.map(mealCard).join(""), gi < 2)).join("")
+    + (foods.length ? fold("이 지역 대표 음식", `${foods.length}가지`, foods.map(foodCard).join(""), !groups.size) : "");
+  const routeCard = (r) => `<div class="mcard">
+      <div class="mc-top"><div class="mc-name">${r.fav ? `<span class="mc-fav" role="img" aria-label="즐겨찾기">${icons.star(16)}</span>` : ""}${esc(r.label || `${r.from} → ${r.to}`)}</div></div>
       <div class="small">${esc([r.mode, r.line].filter(Boolean).join(" · "))}</div>
-      ${r.boardStation || r.alightStation ? `<div class="small">🚉 <b>${esc(r.boardStation || "?")}</b> 승차 → <b>${esc(r.alightStation || "?")}</b> 하차</div>` : ""}
+      ${r.boardStation || r.alightStation ? `<div class="small"><b>${esc(r.boardStation || "?")}</b> 승차 → <b>${esc(r.alightStation || "?")}</b> 하차</div>` : ""}
       <div class="small muted">${esc([r.durationMin ? `약 ${r.durationMin}분` : "", r.frequency, r.firstLast].filter(Boolean).join(" · "))}</div>
-      ${r.fare || r.ticket ? `<div class="small">💶 ${esc([r.fare, r.ticket].filter(Boolean).join(" · "))}</div>` : ""}
+      ${r.fare || r.ticket ? `<div class="small"><b>${esc([r.fare, r.ticket].filter(Boolean).join(" · "))}</b></div>` : ""}
       ${r.whereToBuy ? `<div class="small muted">표 구입: ${esc(r.whereToBuy)}</div>` : ""}${r.taxi ? `<div class="small muted">택시: ${esc(r.taxi)}</div>` : ""}
       ${(r.steps || []).length ? `<ol class="small" style="margin:2px 0;padding-left:18px">${r.steps.map((t) => `<li>${esc(t)}</li>`).join("")}</ol>` : ""}
       ${r.tips ? `<div class="small muted">팁: ${esc(r.tips)}</div>` : ""}
-      <a class="small" target="_blank" rel="noopener noreferrer" href="${dirUrl(r.to || r.alightStation || "", "transit")}">🧭 내 위치에서 대중교통 길찾기 (구글 지도)</a>
-    </div>`).join("");
-  const passHtml = passes.map((p) => `<div class="card stack" style="gap:2px"><b>${esc(p.name)}${p.price ? " · " + esc(p.price) : ""}</b>${p.valid ? `<div class="small muted">유효: ${esc(p.valid)}</div>` : ""}${p.whereToBuy ? `<div class="small muted">구입: ${esc(p.whereToBuy)}</div>` : ""}${p.note ? `<div class="small muted">${esc(p.note)}</div>` : ""}</div>`).join("");
-  const sec = (t, b) => (b ? `<div class="small muted" style="font-weight:800;margin-top:8px">${t}</div>${b}` : "");
-  const body = mealHtml || foodHtml || routeHtml || passHtml ? `${sec("식사 장소 — 누르면 내 위치에서 길찾기", mealHtml)}${sec("현지 음식 가이드", foodHtml)}${sec("현지 교통", routeHtml)}${sec("표·패스", passHtml)}${notes ? `<div class="card small muted">${esc(notes)}</div>` : ""}`
-    : `<div class="card small muted">아직 정리된 식사 장소·교통 정보가 없어요. 노트북 Trip Desk 의 '식사·이동' 탭에서 정리하고 패키지를 다시 보내면 여기에 나와요.</div>`;
-  openSheet(`<div class="sheet-head"><h2 class="sheet-title">식사·이동</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div><div class="stack">${body}</div>`);
+      <a class="go-btn" target="_blank" rel="noopener noreferrer" href="${dirUrl(r.to || r.alightStation || "", "transit")}">${icons.compass(18)}내 위치에서 대중교통 길찾기</a>
+    </div>`;
+  const passCard = (p) => `<div class="mcard"><div class="mc-name">${esc(p.name)}${p.price ? " · " + esc(p.price) : ""}</div>${p.valid ? `<div class="small muted">유효: ${esc(p.valid)}</div>` : ""}${p.whereToBuy ? `<div class="small muted">구입: ${esc(p.whereToBuy)}</div>` : ""}${p.note ? `<div class="small muted">${esc(p.note)}</div>` : ""}</div>`;
+  const moveBody = (routes.length ? routes.map(routeCard).join("") : "")
+    + (passes.length ? `<div class="group-title">표·패스</div>${passes.map(passCard).join("")}` : "")
+    + (notes ? `<div class="mcard small muted">${esc(notes)}</div>` : "");
+  const nMeal = meals.length + foods.length, nMove = routes.length + passes.length;
+  const empty = `<div class="card small muted">아직 정리된 식사 장소·교통 정보가 없어요. 노트북 Trip Desk 의 '식사·이동' 탭에서 정리하고 패키지를 다시 보내면 여기에 나와요.</div>`;
+  const { el } = openSheet(`<div class="lsheet-top"><div class="sheet-head"><h2 class="sheet-title">식사·이동</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
+      <div class="ltabs" role="tablist" aria-label="보기 선택"><button role="tab" class="on" data-lt="meal" aria-selected="true">식사 · ${nMeal}</button><button role="tab" data-lt="move" aria-selected="false">교통 · ${nMove}</button></div></div>
+    <div id="ltMeal" role="tabpanel">${mealBody || empty}</div><div id="ltMove" role="tabpanel" class="hidden">${moveBody || empty}</div>`);
+  el.querySelectorAll("[data-lt]").forEach((b) => b.addEventListener("click", () => {
+    el.querySelectorAll("[data-lt]").forEach((o) => { const on = o === b; o.classList.toggle("on", on); o.setAttribute("aria-selected", String(on)); });
+    el.querySelector("#ltMeal").classList.toggle("hidden", b.dataset.lt !== "meal");
+    el.querySelector("#ltMove").classList.toggle("hidden", b.dataset.lt !== "move");
+  }));
+  if (!meals.length && !foods.length && routes.length) el.querySelector('[data-lt="move"]').click();
 }
 
 // 세션(세미나·컨퍼런스) 상세: 시간·장소·연사·주제, 홀이 있으면 맵에서 보기

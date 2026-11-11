@@ -21,9 +21,6 @@ export async function renderMap(root, ctx) {
 
   root.innerHTML = `
     ${headerHtml(trip, day)}
-    <div class="header" style="padding-top:0"><div class="chips">
-      <div class="chip">오늘 ${todays.length - onsite}곳</div><div class="chip">완료 ${done}</div><div class="chip">현장 추가 ${onsite}</div>
-    </div></div>
     <div class="map-wrap">
       ${
         map
@@ -38,8 +35,10 @@ export async function renderMap(root, ctx) {
                <button class="btn btn-dark" id="loadMap">맵 파일 불러오기</button>
              </div>`
       }
-      <button class="fab" id="fabAdd">${icons.plus(18)}업체 추가</button>
-    </div>`;
+    </div>
+    <div class="map-bar"><div><b>오늘 ${todays.length - onsite}곳</b><span class="muted"> · 완료 ${done}${onsite ? ` · 현장 추가 ${onsite}` : ""}</span>
+      <div class="tiny muted"><i class="lg todo"></i>남은 <i class="lg done"></i>완료</div></div>
+      <button class="btn btn-primary" id="fabAdd">${icons.plus(18)}업체 추가</button></div>`;
 
   bindHeader(root, trip, ctx);
   root.querySelector("#fabAdd").onclick = () => openAddCompany(ctx);
@@ -92,7 +91,7 @@ export async function renderMap(root, ctx) {
   }
   const place = () => {
     const w = img.naturalWidth || map.width, hh = img.naturalHeight || map.height;
-    for (const [b, m] of pins) b.style.transform = `translate(${pz.x + m.x * w * pz.scale}px, ${pz.y + m.y * hh * pz.scale}px) translate(-50%,-100%)`;
+    for (const [b, m] of pins) b.style.transform = `translate(${pz.x + m.x * w * pz.scale}px, ${pz.y + m.y * hh * pz.scale}px) translate(-50%,calc(-100% - 16px))`;
   };
   pz.onChange = (s) => { viewStates.set(map.id, s); place(); };
   if (img.complete) place(); else img.addEventListener("load", place);

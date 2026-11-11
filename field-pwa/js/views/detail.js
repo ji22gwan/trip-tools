@@ -73,10 +73,10 @@ export async function renderDetail(root, ctx, companyId) {
     <div class="appbar">
       <button class="icon-btn" id="backBtn" aria-label="리스트로 돌아가기">${icons.back(24)}</button>
       <div class="appbar-main"><div class="appbar-title">${esc(company.name)}</div><div class="small muted">${esc(place || "정보 없음")}${company.core ? ` <span class="pill core-pill">★ 핵심 업체</span>` : ""}${company.dup ? ` <span class="pill dup-pill">중복 ${company.dup.i}/${company.dup.n}</span>` : ""}</div></div>
-      ${isVisited(company, day) ? `<span class="pill pill-blue">오늘 방문함</span>` : `<button class="btn btn-sm" id="visitBtn">방문 체크</button>`}
     </div>
     <div class="scroll" style="padding-top:10px">
       <div class="stack">
+        ${isVisited(company, day) ? `<div class="visit-done">${icons.check(20)}오늘 방문함</div>` : `<button class="btn btn-dark btn-block visit-btn" id="visitBtn">${icons.check(22)}방문 체크</button>`}
         ${company.addedOnSite ? `<div><span class="pill pill-orange">현장 추가</span></div>` : ""}
         ${
           company.preNotes || company.questions?.length
