@@ -216,3 +216,8 @@ label.chk:focus-within{outline:3px solid var(--blue);outline-offset:2px}
 .btn.star{color:var(--sub)}.btn.star.on{color:#B26B00}
 .rev{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;line-height:1.5}
 .rev.low{background:#fffbeb;border-color:#fcd34d}
+details.fold>summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:10px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:"";flex:none;width:8px;height:8px;border-right:2.5px solid var(--sub);border-bottom:2.5px solid var(--sub);transform:rotate(-45deg);transition:transform .15s}
+details.fold[open]>summary::before{transform:rotate(45deg)}
+details.fold[open]>summary{margin-bottom:6px}

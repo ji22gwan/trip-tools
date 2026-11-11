@@ -293,7 +293,7 @@ export function openLocal(trip) {
   const { meals = [], routes = [], passes = [], foods = [], notes = "" } = trip.local || {};
   const groups = new Map();
   meals.forEach((m) => { const k = m.group || m.area || "기타"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); });
-  const mealHtml = [...groups].map(([g, ms]) => `<div class="small muted" style="font-weight:800;margin-top:6px">${esc(g)}</div>` + ms.map((m) => `
+  const mealHtml = [...groups].map(([g, ms], gi) => `<details class="mfold" ${gi < 2 ? "open" : ""}><summary class="small" style="font-weight:800;margin-top:6px;cursor:pointer;min-height:40px;display:flex;align-items:center;gap:6px">${esc(g)} <span class="muted">· ${ms.length}곳</span></summary>` + ms.map((m) => `
     <a class="card stack" style="gap:3px;text-decoration:none;color:inherit" target="_blank" rel="noopener noreferrer" href="${dirUrl(m.mapQuery || m.name, "walking")}">
       <div class="row" style="justify-content:space-between"><b>${m.fav ? "★ " : ""}${esc(m.name)}</b>${m.meal ? `<span class="pill pill-blue">${esc(m.meal)}</span>` : ""}</div>
       <div class="small muted">${esc([m.cuisine, m.price].filter(Boolean).join(" · "))}</div>
@@ -301,7 +301,7 @@ export function openLocal(trip) {
       ${m.where ? `<div class="small">📍 ${esc(m.where)}</div>` : ""}${m.hours ? `<div class="small">🕒 ${esc(m.hours)}</div>` : ""}
       ${m.why ? `<div class="small">${esc(m.why)}</div>` : ""}${m.tip ? `<div class="small muted">팁: ${esc(m.tip)}</div>` : ""}
       <div class="small" style="color:var(--blue,#2563eb);font-weight:700">🧭 내 위치에서 길찾기 (구글 지도)</div>
-    </a>`).join("")).join("");
+    </a>`).join("") + `</details>`).join("");
   const foodHtml = foods.map((f) => `
     <div class="card stack" style="gap:2px">
       <div><b>${esc(f.name)}</b>${f.local ? ` <span class="muted small">${esc(f.local)}</span>` : ""}${f.price ? ` <span class="pill">${esc(f.price)}</span>` : ""}</div>

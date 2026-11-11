@@ -31,6 +31,7 @@ export function localTab(P) {
   const host = h("div", { class: "pad", style: "display:flex;flex-direction:column;gap:14px;background:var(--bg)" }, spinner("불러오는 중…"));
   const base = `/trips/${P.tid}/local`;
   let V = null;
+  const closed = new Set();                      // 접어 둔 식사 그룹(다시 그려도 유지)
   const picked = { meals: null, legs: null };   // 체크 상태는 다시 그려도 유지
   const draw = (v) => { V = v || V; paint(); };
   const load = async () => draw(await api("GET", base));
@@ -82,19 +83,21 @@ export function localTab(P) {
       h("div", { class: "row", style: "gap:6px;flex-wrap:wrap;justify-content:flex-end" },
         link(mapUrl(`${m.name} ${m.where || m.area}`), "지도"), m.sourceUrl ? link(m.sourceUrl, "출처") : null,
         h("button", { class: "btn sm ic danger", "aria-label": m.name + " 삭제", title: "삭제", onclick: () => put({ meals: L.meals.filter((x) => x.id !== m.id) }) }, ico("x", { width: 2.4 }))));
-    const mealList = [...groups].map(([k, ms]) => h("div", { class: "grp" },
-      h("div", { class: "row", style: "justify-content:space-between" }, h("b", { style: "font-size:15px" }, `${gname(k, ms)} · ${ms.length}곳`),
-        h("button", { class: "btn sm danger", onclick: () => confirmBox("목록 비우기", `'${gname(k, ms)}' 식사 장소 ${ms.length}곳을 지울까요?`, "비우기", () => put({ meals: L.meals.filter((x) => (x.ref || "etc:" + x.area) !== k) }), true) }, "비우기")),
+    const mealList = [...groups].map(([k, ms]) => h("details", { class: "grp fold", open: !closed.has(k), ontoggle: (e) => { e.target.open ? closed.delete(k) : closed.add(k); } },
+      h("summary", {}, h("b", { style: "font-size:15px" }, gname(k, ms)), h("span", { class: "pill gray" }, `${ms.length}곳`), h("span", { class: "grow" }),
+        h("button", { class: "btn sm danger", onclick: (e) => { e.preventDefault(); e.stopPropagation(); confirmBox("목록 비우기", `'${gname(k, ms)}' 식사 장소 ${ms.length}곳을 지울까요?`, "비우기", () => put({ meals: L.meals.filter((x) => (x.ref || "etc:" + x.area) !== k) }), true); } }, "비우기")),
       ...ms.map(placeRow)));
+    const foldAll = (open) => { open ? closed.clear() : [...groups.keys()].forEach((k) => closed.add(k)); paint(); };
 
-    const meals = h("div", { class: "card" }, h("div", { class: "row" }, h("h3", {}, "식사 장소"), L.meals.length ? h("span", { class: "pill gray" }, `${L.meals.length}곳 저장됨`) : null),
+    const meals = h("div", { class: "card" }, h("div", { class: "row" }, h("h3", {}, "식사 장소"), L.meals.length ? h("span", { class: "pill gray" }, `${L.meals.length}곳 저장됨`) : null,
+      groups.size > 1 ? h("span", { class: "grow" }) : null, groups.size > 1 ? h("button", { class: "btn sm", onclick: () => foldAll(false) }, "모두 접기") : null, groups.size > 1 ? h("button", { class: "btn sm", onclick: () => foldAll(true) }, "모두 펼치기") : null),
       h("div", { class: "msg" }, "경유 공항은 '대기 시간 안에 실제로 먹고 올 수 있는지'를, 숙소는 '걸어갈 수 있고 그 시각에 여는지'를 따져서 찾도록 프롬프트를 만들어요. 고른 곳마다 따로 정리돼요."),
       targets,
       h("div", { class: "row" }, h("button", { class: "btn primary", "data-act": "meals", disabled: !picked.meals.size, onclick: askMeals }, "식사 장소 프롬프트 만들기")),
       ...(mealList.length ? mealList : [h("div", { class: "sub" }, "아직 저장된 식사 장소가 없어요.")]),
-      (L.foods || []).length ? h("div", { class: "grp" },
-        h("div", { class: "row", style: "justify-content:space-between" }, h("b", { style: "font-size:15px" }, `현지 음식 가이드 · ${L.foods.length}가지`),
-          h("button", { class: "btn sm danger", onclick: () => confirmBox("목록 비우기", "현지 음식 가이드를 지울까요?", "비우기", () => put({ foods: [] }), true) }, "비우기")),
+      (L.foods || []).length ? h("details", { class: "grp fold", open: !closed.has("foods"), ontoggle: (e) => { e.target.open ? closed.delete("foods") : closed.add("foods"); } },
+        h("summary", {}, h("b", { style: "font-size:15px" }, "현지 음식 가이드"), h("span", { class: "pill gray" }, `${L.foods.length}가지`), h("span", { class: "grow" }),
+          h("button", { class: "btn sm danger", onclick: (e) => { e.preventDefault(); e.stopPropagation(); confirmBox("목록 비우기", "현지 음식 가이드를 지울까요?", "비우기", () => put({ foods: [] }), true); } }, "비우기")),
         ...L.foods.map((f) => h("div", { class: "place" }, h("div", { class: "grow", style: "display:flex;flex-direction:column;gap:3px;min-width:0" },
           h("div", {}, h("b", {}, f.name), f.local ? h("span", { class: "sub" }, "  " + f.local) : null, f.price ? h("span", { class: "pill", style: "margin-left:8px" }, f.price) : null),
           f.desc ? h("div", {}, f.desc) : null, f.order ? h("div", {}, "주문: " + f.order) : null, f.where ? h("div", { class: "sub" }, f.where) : null),
