@@ -5,6 +5,11 @@ export const LANGUAGES = [
   { code: "de", label: "독일어", speech: "de-DE" },
   { code: "ko", label: "한국어", speech: "ko-KR" },
   { code: "en", label: "영어", speech: "en-US" },
+  { code: "fr", label: "프랑스어", speech: "fr-FR" },
+  { code: "it", label: "이탈리아어", speech: "it-IT" },
+  { code: "es", label: "스페인어", speech: "es-ES" },
+  { code: "ja", label: "일본어", speech: "ja-JP" },
+  { code: "zh", label: "중국어", speech: "zh-CN" },
 ];
 
 const ERROR_TEXT = {

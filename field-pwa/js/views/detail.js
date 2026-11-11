@@ -4,9 +4,21 @@ import { esc, icons, pickFile, toast, confirmDialog } from "../ui.js";
 import { ensureVisited, formatDuration, formatTime, isVisited, loadCompanyRecords, visitNumber } from "../model.js";
 import { Recorder, isRecordingSupported } from "../recorder.js";
 import { openTranslate } from "./shared.js";
+import { LANGUAGES, translateText, translationConfigured } from "../translate.js";
 
 const recorder = new Recorder();
 let recordingCompanyId = null;
+
+// 질문 표시 언어: 한국어(원문) / English / 현지어. 출장마다 기억한다.
+const qKey = (tripId) => `tf.qlang.${tripId}`;
+function getQLang(tripId) {
+  try { return { mode: "ko", local: "de", ...JSON.parse(localStorage.getItem(qKey(tripId)) || "{}") }; } catch { return { mode: "ko", local: "de" }; }
+}
+function setQLang(tripId, patch) {
+  try { localStorage.setItem(qKey(tripId), JSON.stringify({ ...getQLang(tripId), ...patch })); } catch { /* 무시 */ }
+}
+const langLabel = (code) => LANGUAGES.find((l) => l.code === code)?.label || code;
+const qFailed = new Set(); // 번역에 실패한 (업체, 언어) — 자동 재시도로 무한 반복하지 않게
 
 export function activeRecordingCompanyId() {
   return recorder.active ? recordingCompanyId : null;
@@ -39,6 +51,7 @@ export async function renderDetail(root, ctx, companyId) {
     location.hash = "#/list";
     return;
   }
+  company.questions ||= [];
   const { recordings, memos, photos } = await loadCompanyRecords(company.id);
   const urls = [];
   const objectUrl = (blob) => {
@@ -69,6 +82,19 @@ export async function renderDetail(root, ctx, companyId) {
     })
     .join("");
 
+  const ql = getQLang(trip.id);
+  const qMode = ql.mode, qLocal = ql.local;
+  const qCode = qMode === "ko" ? "ko" : qMode === "en" ? "en" : qLocal;
+  const needTr = qCode !== "ko" ? company.questions.filter((q) => !q.tr?.[qCode]) : [];
+  const failKey = `${company.id}:${qCode}`;
+  let qNote = null;
+  if (needTr.length) {
+    if (!translationConfigured()) qNote = { text: "번역하려면 설정에서 번역 서버를 연결해 주세요.", err: true };
+    else if (navigator.onLine === false) qNote = { text: "오프라인이에요. 인터넷이 있을 때 한 번 번역해 두면 이후엔 오프라인에서도 보여요.", err: true };
+    else if (qFailed.has(failKey)) qNote = { text: "번역하지 못했어요.", err: true, retry: true };
+    else qNote = { text: `${langLabel(qCode)}로 번역하는 중…` };
+  }
+
   root.innerHTML = `
     <div class="appbar">
       <button class="icon-btn" id="backBtn" aria-label="리스트로 돌아가기">${icons.back(24)}</button>
@@ -78,20 +104,21 @@ export async function renderDetail(root, ctx, companyId) {
       <div class="stack">
         ${isVisited(company, day) ? `<div class="visit-done">${icons.check(20)}오늘 방문함</div>` : `<button class="btn btn-dark btn-block visit-btn" id="visitBtn">${icons.check(22)}방문 체크</button>`}
         ${company.addedOnSite ? `<div><span class="pill pill-orange">현장 추가</span></div>` : ""}
-        ${
-          company.preNotes || company.questions?.length
-            ? `<div class="card">
-                ${company.preNotes ? `<div class="card-title">사전조사 메모</div><div style="line-height:1.6;white-space:pre-wrap;margin-bottom:${company.questions?.length ? 12 : 0}px">${esc(company.preNotes)}</div>` : ""}
-                ${
-                  company.questions?.length
-                    ? `<div class="card-title">사전 질문 체크</div>${company.questions
-                        .map((q, i) => `<button class="q-item" data-q="${i}" aria-pressed="${!!q.done}"><span class="box ${q.done ? "on" : ""}">${q.done ? `<span style="color:#fff">${icons.check(14)}</span>` : ""}</span><span style="${q.done ? "color:var(--sub)" : ""}">${esc(q.text)}</span></button>`)
-                        .join("")}`
-                    : ""
-                }
-              </div>`
-            : ""
-        }
+        ${company.preNotes ? `<div class="card"><div class="card-title">사전조사 메모</div><div style="line-height:1.6;white-space:pre-wrap">${esc(company.preNotes)}</div></div>` : ""}
+        <div class="card" id="qCard">
+          <div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div class="card-title" style="margin:0">물어볼 것 · ${company.questions.filter((q) => q.done).length}/${company.questions.length}</div>
+            <div class="seg qseg" role="group" aria-label="질문 표시 언어">
+              <button class="${qMode === "ko" ? "on" : ""}" data-qm="ko" aria-pressed="${qMode === "ko"}">한국어</button>
+              <button class="${qMode === "en" ? "on" : ""}" data-qm="en" aria-pressed="${qMode === "en"}">English</button>
+              <button class="${qMode === "local" ? "on" : ""}" data-qm="local" aria-pressed="${qMode === "local"}">${esc(langLabel(qLocal))}</button></div></div>
+          ${qMode === "local" ? `<div class="row" style="margin-top:8px;gap:8px"><label class="tiny muted" for="qLocalSel">현지어</label><select id="qLocalSel" class="select" style="min-height:40px;flex:1">${LANGUAGES.filter((l) => l.code !== "ko" && l.code !== "en").map((l) => `<option value="${l.code}" ${l.code === qLocal ? "selected" : ""}>${l.label}</option>`).join("")}</select></div>` : ""}
+          ${qNote ? `<div class="small" style="margin:8px 0 0;color:${qNote.err ? "#8a5300" : "var(--sub)"}">${esc(qNote.text)}${qNote.retry ? ` <button class="btn btn-sm" id="qRetry" style="height:32px">다시 시도</button>` : ""}</div>` : ""}
+          <div style="margin-top:6px">${company.questions.length ? company.questions.map((q, i) => {
+            const t = qCode !== "ko" ? q.tr?.[qCode] : "";
+            return `<button class="q-item q-tall" data-q="${i}" aria-pressed="${!!q.done}"><span class="box ${q.done ? "on" : ""}">${q.done ? `<span style="color:#fff">${icons.check(14)}</span>` : ""}</span><span style="${q.done ? "color:var(--sub)" : ""}"><span class="${t ? "q-main" : ""}">${esc(t || q.text)}</span>${t ? `<span class="q-orig">${esc(q.text)}</span>` : ""}</span></button>`;
+          }).join("") : `<div class="small muted" style="padding:8px 0">아직 질문이 없어요. 아래에 직접 적거나 노트북 Trip Desk 에서 템플릿으로 고를 수 있어요.</div>`}</div>
+          <div class="row" style="margin-top:8px;gap:8px"><input class="input" id="qNew" placeholder="질문 추가 (한국어로 적으면 번역돼요)" aria-label="질문 추가" style="flex:1"><button class="btn btn-sm btn-dark" id="qAdd">추가</button></div>
+        </div>
         <div class="card">
           <div class="row" style="justify-content:space-between;align-items:baseline"><div class="card-title" style="margin:0">녹음 · ${recordings.length}건 누적</div><div class="tiny muted">총 ${formatDuration(totalSec)}</div></div>
           ${recRows || `<div class="small muted" style="padding:10px 0 2px">아직 녹음이 없어요. 아래 버튼으로 시작하세요.</div>`}
@@ -148,7 +175,7 @@ export async function renderDetail(root, ctx, companyId) {
     ctx.rerender();
   });
 
-  // ---- 질문 체크 ----
+  // ---- 질문 체크·언어·추가·번역 ----
   root.querySelectorAll("[data-q]").forEach((btn) => {
     btn.onclick = async () => {
       const i = Number(btn.dataset.q);
@@ -157,6 +184,43 @@ export async function renderDetail(root, ctx, companyId) {
       ctx.rerender();
     };
   });
+  root.querySelectorAll("[data-qm]").forEach((b) => { b.onclick = () => { setQLang(trip.id, { mode: b.dataset.qm }); ctx.rerender(); }; });
+  root.querySelector("#qLocalSel")?.addEventListener("change", (e) => { setQLang(trip.id, { local: e.target.value }); ctx.rerender(); });
+  root.querySelector("#qRetry")?.addEventListener("click", () => { qFailed.delete(failKey); ctx.rerender(); });
+  const addQ = async () => {
+    const inp = root.querySelector("#qNew");
+    const text = inp.value.trim();
+    if (!text) return;
+    if (company.questions.some((q) => q.text === text)) { toast("이미 있는 질문이에요."); return; }
+    company.questions.push({ text, done: false, mine: true });
+    await db.put("companies", company);
+    ctx.rerender();
+  };
+  root.querySelector("#qAdd")?.addEventListener("click", addQ);
+  root.querySelector("#qNew")?.addEventListener("keydown", (e) => { if (e.key === "Enter") addQ(); });
+  if (needTr.length && translationConfigured() && navigator.onLine !== false && !qFailed.has(failKey)) {
+    (async () => {
+      let okCount = 0;
+      await Promise.all(needTr.map(async (q) => {
+        try {
+          const out = await translateText(q.text, "auto", qCode);
+          q.tr = { ...(q.tr || {}), [qCode]: out };
+          okCount++;
+        } catch { /* 아래에서 실패 처리 */ }
+      }));
+      if (okCount < needTr.length) qFailed.add(failKey);
+      if (okCount) {
+        // 번역 도중 다른 곳에서 바뀐 값이 있을 수 있으니 최신 레코드에 번역만 합쳐서 저장한다
+        const fresh = (await db.get("companies", company.id)) || company;
+        for (const q of company.questions) {
+          const f = fresh.questions.find((x) => x.text === q.text);
+          if (f && q.tr) f.tr = { ...(f.tr || {}), ...q.tr };
+        }
+        await db.put("companies", fresh);
+      }
+      if (root.isConnected && document.getElementById("qCard")) ctx.rerender();
+    })();
+  }
 
   // ---- 녹음 재생 / 삭제 ----
   let audio = null;

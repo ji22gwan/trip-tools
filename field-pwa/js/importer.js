@@ -92,11 +92,18 @@ export async function importMapFile(tripId, file, { replace = true } = {}) {
 }
 
 function normalizeQuestions(list, previous = []) {
-  const prevDone = new Map(previous.map((q) => [q.text, q.done]));
-  return (list || [])
+  // 다시 불러와도 체크 표시, 번역 캐시(tr), 폰에서 직접 추가한 질문(mine)은 유지한다
+  const prev = new Map(previous.map((q) => [q.text, q]));
+  const out = (list || [])
     .map((q) => (typeof q === "string" ? { text: q } : q))
     .filter((q) => q && q.text)
-    .map((q) => ({ text: String(q.text), done: prevDone.get(String(q.text)) ?? !!q.done }));
+    .map((q) => {
+      const text = String(q.text), p = prev.get(text);
+      return { text, done: p?.done ?? !!q.done, ...(p?.tr ? { tr: p.tr } : {}) };
+    });
+  const have = new Set(out.map((q) => q.text));
+  for (const p of previous) if (p.mine && !have.has(p.text)) out.push(p);
+  return out;
 }
 
 function findEntry(zip, basename) {

@@ -1,6 +1,7 @@
 import { pinsPanel, renderMapForPhone } from "./pins.js";
 import { travelTab } from "./travel.js";
 import { localTab } from "./local.js";
+import { questionPicker } from "./questions.js";
 import { sessionsTab } from "./sessions.js";
 import { h, api, toast, spinner, guard, modal, confirmBox, promptModal, download, copyText } from "./core.js";
 
@@ -389,8 +390,8 @@ function openCompanyEditor(c) {
     const f = {
       name: h("input", { value: c?.name || "" }), category: h("input", { value: c?.category || "", placeholder: "예) 협동로봇" }),
       preNotes: h("textarea", { value: c?.preNotes || "", placeholder: "사전 메모 (폰에서 업체 화면에 보여요)" }),
-      questions: h("textarea", { value: (c?.questions || []).join("\n"), placeholder: "확인할 질문 (한 줄에 하나)" }),
     };
+    const qp = questionPicker(c?.questions || []);
     const fld = (l, el) => h("div", { class: "field" }, h("label", {}, l), el);
     // 부스가 여러 곳이면 줄을 늘린다. 업체(체크박스)는 1개로 세고, 일정 배분만 부스별로 나뉜다.
     const rows = [];
@@ -404,13 +405,13 @@ function openCompanyEditor(c) {
     (c ? bs(c) : [{}]).forEach(addRow);
     m.append(fld("업체명", f.name), fld("카테고리", f.category), h("div", { class: "field" }, h("label", {}, "홀 · 부스 (여러 곳이면 + 로 추가)"), boothBox,
       h("button", { class: "btn sm", style: "align-self:flex-start;margin-top:4px", onclick: () => addRow({}) }, "+ 부스 추가")),
-      fld("사전 메모", f.preNotes), fld("확인할 질문", f.questions));
+      fld("사전 메모", f.preNotes), fld("확인할 질문 (폰에서 영어·현지어로 번역해 보여줘요)", qp.el));
     if (c?.reason) m.append(h("div", { class: "msg" }, "AI가 적은 이유: " + c.reason));
     m.append(h("div", { class: "row", style: "justify-content:space-between" },
       c ? h("button", { class: "btn danger", onclick: () => confirmBox("업체 삭제", `'${c.name}' 을(를) 목록에서 지울까요?`, "삭제", () => guard(() => saveCompanies(P.v.companies.filter((x) => x.id !== c.id))), true) }, "삭제") : h("span"),
       h("button", { class: "btn primary", onclick: () => {
         if (!f.name.value.trim()) return toast("업체명을 입력해 주세요.", true);
-        const data = { name: f.name.value.trim(), category: f.category.value.trim() || "기타", booths: rows.map((r) => ({ ...r.b, hall: r.hall.value.trim(), booth: r.booth.value.trim() })).filter((b) => b.hall || b.booth), preNotes: f.preNotes.value, questions: f.questions.value.split("\n").map((x) => x.trim()).filter(Boolean) };
+        const data = { name: f.name.value.trim(), category: f.category.value.trim() || "기타", booths: rows.map((r) => ({ ...r.b, hall: r.hall.value.trim(), booth: r.booth.value.trim() })).filter((b) => b.hall || b.booth), preNotes: f.preNotes.value, questions: qp.get() };
         const list = c ? P.v.companies.map((x) => (x.id === c.id ? { ...x, ...data } : x))
           : [...P.v.companies, { id: "c-" + Math.random().toString(16).slice(2, 10), picked: true, source: "manual", ...data }];
         close();
