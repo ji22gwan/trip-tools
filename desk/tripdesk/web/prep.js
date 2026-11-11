@@ -40,7 +40,7 @@ function draw() {
   const { trip } = P.v;
   const s = stats();
   const steps = [
-    ["출장 정보", true, () => { P.root.querySelector(".leftcol input")?.focus(); }],
+    ["출장 정보", true, () => { if (WIDE.has(P.tab)) { P.tab = "cands"; redraw(); } P.root.querySelector(".leftcol input")?.focus(); }],
     ["후보 수집", s.all > 0, () => goTab("cands")],
     ["후보·일정", s.picked > 0 && s.dated === s.stops, () => goTab(s.picked ? "plan" : "cands")],
     ["패키지 확정", getFlag(P.tid), confirmPackage],
@@ -62,10 +62,12 @@ function draw() {
       kpi("선택한 업체", s.picked, s.unverified ? `참가 미확인 ${s.unverified}곳` : "폰으로 보낼 업체", true),
       kpi("일정 배정", `${s.dated}/${s.stops}`, s.stops > s.picked ? `부스 기준 · 업체 ${s.picked}곳` : trip.days.length + "일 일정"),
       kpi("전시장 지도", s.maps, s.maps ? "대표 1장을 폰에 보내요" : "아직 없어요")),
-    h("div", { class: "cols" }, leftCol(s), panel(s)),
+    // 일정 배분·항공·숙소·식사·이동은 내용이 넓어서 왼쪽 '출장 정보' 열 없이 패널을 전체 폭으로 쓴다 (후보 업체 등은 그대로)
+    h("div", { class: "cols" }, ...(WIDE.has(P.tab) ? [] : [leftCol(s)]), panel(s)),
   );
 }
 
+const WIDE = new Set(["plan", "travel", "local"]);
 const goTab = (k) => { P.tab = k; redraw(); P.root.querySelector(".panel")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 const kpi = (label, val, note, accent) => h("div", { class: "kpi" + (accent ? " accent" : "") }, h("span", {}, label), h("b", {}, val), h("em", {}, note));
 
@@ -108,7 +110,7 @@ function leftCol(s) {
 // ---------------- 오른쪽: 탭 ----------------
 function panel(s) {
   const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["local", "식사·이동"], ["gloss", "용어집"]];
-  return h("div", { class: "panel" },
+  return h("div", { class: "panel" + (WIDE.has(P.tab) ? " wide" : "") },
     h("div", { class: "tabs", role: "tablist" }, ...tabs.map(([k, label]) => h("button", { class: P.tab === k ? "on" : "", role: "tab", onclick: () => { P.tab = k; redraw(); } }, label))),
     P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : P.tab === "local" ? localTab(P) : glossTab(),
   );
@@ -223,19 +225,29 @@ function planTab(s) {
   const card = (x) => {
     const d = x.b.day || 0;
     const others = bs(x.c).map((b, j) => ({ b, j })).filter((o) => o.j !== x.i);
+    const mv = [];
+    if (d > 0) mv.push(h("button", { onclick: () => move(x, d - 1 || null) }, d === 1 ? "← 미배정" : `← Day ${d - 1}`));
+    if (d < days.length) mv.push(h("button", { onclick: () => move(x, d + 1) }, `Day ${d + 1} →`));
     return h("div", { class: "card2" + (x.n > 1 ? " dupc" : "") }, h("div", { class: "t" }, x.c.name),
       x.n > 1 ? h("div", { class: "dupnote" }, h("b", {}, `⚠ 중복 업체 ${x.i + 1}/${x.n}`), ` · 다른 부스: ${others.map((o) => `${o.b.booth || o.b.hall || "?"}${o.b.day ? ` (Day ${o.b.day})` : ""}`).join(", ")}`) : null,
       h("div", { class: "m" }, `${x.c.category || "기타"} · ${bLabel(x.b)}`),
-      h("div", { class: "mv" },
-        h("button", { "aria-label": "앞 일차로", disabled: d <= 0, onclick: () => move(x, d - 1 || null) }, "◀"),
-        h("button", { "aria-label": "다음 일차로", disabled: d >= days.length, onclick: () => move(x, d + 1) }, "▶")));
+      h("div", { class: "mv" }, ...mv));
   };
-  const col = (title, list) => h("div", { class: "col" }, h("h4", {}, title, h("span", {}, list.length + "곳")), ...list.map(card));
+  const loads = days.map((_, i) => stops.filter((x) => x.b.day === i + 1).length);
+  const peak = Math.max(1, ...loads);
+  const col = (title, list, bar) => h("div", { class: "col" }, h("h4", {}, title, h("span", {}, list.length + "곳")),
+    bar == null ? null : h("div", { class: "load", "aria-hidden": "true" }, h("i", { style: `width:${Math.round((bar / peak) * 100)}%` })), ...list.map(card));
+  const unassigned = stops.filter((x) => !x.b.day);
+  const help = `아직 일차가 없는 곳만 같은 홀끼리 묶어 날짜별로 고르게 나눠요. 한 날에 몰리면 2·3일차 쪽으로 가요(첫날은 둘러볼 시간). 이미 정한 일정은 그대로 둬요.${s.stops > s.picked ? ` 선택한 업체 ${s.picked}곳 중 부스가 여럿인 업체가 있어 카드(지점)는 ${s.stops}곳이에요.` : ""}`;
   return h("div", { style: "display:flex;flex-direction:column" },
-    h("div", { class: "pad", style: "padding-bottom:0" }, h("div", { class: "row" },
+    h("div", { class: "pad", style: "padding-bottom:0" }, h("div", { class: "row", style: "flex-wrap:wrap" },
       h("button", { class: "btn primary sm", onclick: autoAssign }, "홀 기준으로 자동 배분"),
-      h("span", { class: "sub" }, `아직 일차가 없는 곳만 같은 홀끼리 묶어 날짜별로 고르게 나눠요. 한 날에 몰리면 2·3일차 쪽으로 가요(첫날은 둘러볼 시간). 이미 정한 일정은 그대로 둬요.${stops.length > picked.length ? ` 선택 업체 ${picked.length}곳 중 부스가 여럿인 업체가 있어 방문 지점은 ${stops.length}곳이에요(⚠ 표시).` : ""}`))),
-    h("div", { class: "board" }, col("미배정", stops.filter((x) => !x.b.day)), ...days.map((d, i) => col(`Day ${i + 1} · ${d.slice(5)}`, stops.filter((x) => x.b.day === i + 1)))));
+      h("span", { class: "sub" }, "같은 홀끼리 묶어 날짜별로 고르게 나눠요. 몰리면 2·3일차로 보내요."),
+      h("button", { class: "btn sm ghost", "aria-expanded": String(!!P.planHelp), onclick: () => { P.planHelp = !P.planHelp; redraw(); } }, P.planHelp ? "접기" : "자세히"),
+      unassigned.length ? null : h("span", { class: "pill ok", style: "margin-left:auto" }, "✓ 미배정 0곳 — 모두 배정됨")),
+      P.planHelp ? h("div", { class: "msg", style: "margin-top:8px" }, help) : null),
+    // 미배정이 없으면 빈 열을 숨겨 일차 열을 넓게 쓴다
+    h("div", { class: "board" }, ...(unassigned.length ? [col("미배정", unassigned)] : []), ...days.map((d, i) => col(`Day ${i + 1} · ${d.slice(5)}`, stops.filter((x) => x.b.day === i + 1), loads[i]))));
 }
 
 function autoAssign() {
@@ -263,7 +275,7 @@ function autoAssign() {
     load[d] += g.length;
   });
   guard(() => saveCompanies(P.v.companies.map((c) => ({ ...c, booths: bs(c).map((b, i) => (assign.has(`${c.id}#${i}`) ? { ...b, day: assign.get(`${c.id}#${i}`) } : b)) }))));
-  toast(`${todo.length}곳을 나눴어요. 필요하면 ◀ ▶ 로 옮기세요.`);
+  toast(`${todo.length}곳을 나눴어요. 필요하면 카드의 이동 버튼으로 옮기세요.`);
 }
 
 // ---------------- 지도 ----------------

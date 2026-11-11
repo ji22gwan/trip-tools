@@ -178,3 +178,39 @@ button.chk-btn{background:none;border:0;font:inherit;text-align:left;cursor:poin
 .pill.corepill{background:#FFE8A3;color:#6B4300;border:1px solid #E2B33A}
 button.starbtn{color:#9a8a5a;font-size:15px}button.starbtn.on{color:#B26B00}
 .tag.core{margin-right:6px}
+
+/* 키보드로 이동할 때 어디 있는지 보이게 (마우스 클릭에는 나타나지 않는다) */
+button:focus-visible,a:focus-visible,summary:focus-visible,[role=button]:focus-visible,[role=tab]:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+/* 일정 배분 보드 · 항공·숙소 · 식사·이동 (넓은 패널) */
+.panel.wide .sub{font-size:13px}
+.panel.wide .board{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.panel.wide .col{padding:12px;gap:10px;min-height:200px}
+.panel.wide .col h4{font-size:16px}.panel.wide .col h4 span{font-size:14px}
+.load{height:6px;border-radius:3px;background:#DDE3EA}.load i{display:block;height:6px;border-radius:3px;background:var(--blue)}
+.panel.wide .card2{padding:10px 12px;gap:6px}.panel.wide .card2 .t{font-size:15px}.panel.wide .card2 .m{font-size:13px}
+.panel.wide .dupnote{font-size:13px}
+.panel.wide .card2 .mv button{height:32px;padding:0 10px;font-size:13px;color:var(--blue);border-radius:8px}
+
+.layov{font-size:13px;color:var(--sub);padding:2px 0 2px 14px;border-left:3px solid var(--line)}
+.layov.warn{color:#9A3412;font-weight:700;border-left-color:#E9A25B}
+details.acc{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+details.acc>summary{list-style:none;cursor:pointer;min-height:56px;padding:0 18px;display:flex;align-items:center;gap:12px;font-size:15px}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::before{content:"";width:8px;height:8px;border-right:2.5px solid var(--sub);border-bottom:2.5px solid var(--sub);transform:rotate(-45deg);transition:transform .15s}
+details.acc[open]>summary::before{transform:rotate(45deg)}
+details.acc[open]>summary{border-bottom:1px solid var(--line2)}
+details.acc>.card{border:0;border-radius:0}
+
+.twocol{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px;align-items:start}
+.twocol>.card{min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+label.chk{height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+label.chk.off{border-color:#9AA7B6;background:#fff;color:var(--sub)}
+label.chk input{width:16px;height:16px;accent-color:var(--blue);margin:0}
+label.chk:focus-within{outline:3px solid var(--blue);outline-offset:2px}
+.ico{display:inline-flex;flex:none}
+.ln{display:flex;align-items:center;gap:8px;font-size:14px;color:#2B3748}.ln .ico{color:var(--sub)}
+.place{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line2)}
+.grp{border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.btn.ic{width:36px;padding:0;justify-content:center}
+.btn.star{color:var(--sub)}.btn.star.on{color:#B26B00}

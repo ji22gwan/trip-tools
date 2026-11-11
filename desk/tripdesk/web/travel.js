@@ -99,25 +99,46 @@ export function travelTab(P) {
         h("button", { class: "btn sm danger", style: "margin-left:auto;font-size:16px", disabled: !c[candTab].length, title: candTab === "flights" ? "항공편 후보 비우기" : "호텔 후보 비우기", "aria-label": candTab === "flights" ? "항공편 후보 비우기" : "호텔 후보 비우기", onclick: () => clear(candTab) }, "🗑")),
       ...(c[candTab].length ? (candTab === "flights" ? flightRows : hotelRows) : [h("div", { class: "sub" }, "이 목록은 비어 있어요. 위의 프롬프트 버튼으로 후보를 받아 보세요.")])) : null;
 
-    const rec = h("div", { class: "card" }, h("h3", {}, "예약 기록"),
-      h("div", { class: "row", style: "flex-wrap:wrap" }, h("button", { class: "btn primary", onclick: () => editFlight({ direction: "outbound" }) }, "+ 항공권"), h("button", { class: "btn primary", onclick: () => editHotel({ checkIn: links.dates.checkIn, checkOut: links.dates.checkOut }) }, "+ 숙소"),
-        h("button", { class: "btn", onclick: fromMail }, "예약 확인서(스크린샷·메일)로 자동 정리")),
-      T.flights.length || T.hotels.length ? null : h("div", { class: "sub" }, "아직 기록이 없어요. 예약을 마치면 직접 입력하거나, 확인 메일을 붙여 넣어 정리하세요."),
+    // 경유 시간이 짧거나(60분 미만)·길거나(4시간 이상)·공항이 바뀌면 눈에 띄게 표시한다
+    const layoverLine = (l) => {
+      const warn = l.airportChange || (l.minutes != null && (l.minutes < 60 || l.minutes >= 240));
+      return h("div", { class: "layov" + (warn ? " warn" : "") }, `↳ ${l.at} 경유 ${span(l.minutes)}${l.airportChange ? ` · 공항 변경 → ${l.to}` : l.minutes != null && l.minutes < 60 ? " · 촉박해요" : l.minutes >= 240 ? " · 오래 기다려요" : ""}`);
+    };
+    const head = (title, n, ...btns) => h("div", { class: "row", style: "flex-wrap:wrap" }, h("h3", { style: "font-size:17px" }, title), h("span", { class: "pill gray" }, `${n}건`), h("div", { style: "flex:1" }), ...btns);
+    const flightsCard = h("div", { class: "card" }, head("항공편", T.flights.length,
+        h("button", { class: "btn sm", onclick: () => editFlight({ direction: "outbound" }) }, "+ 항공권"),
+        h("button", { class: "btn sm primary", onclick: fromMail }, "예약 확인서(스크린샷·메일)로 자동 정리")),
+      T.flights.length ? null : h("div", { class: "sub" }, "아직 기록이 없어요. 예약을 마치면 직접 입력하거나, 확인 메일·스크린샷으로 자동 정리하세요."),
       ...T.flights.map((x) => h("div", { class: "row", style: "align-items:flex-start" }, h("span", { class: "pill gray" }, DIR[x.direction]),
         h("div", { class: "grow" },
           h("b", {}, x.route.join(" → ")), h("span", { class: "sub" }, x.segments.length > 1 ? `  경유 ${x.segments.length - 1}회` : "  직항"),
           h("div", { class: "sub" }, `예약번호 ${x.confirmation || "-"} · ${money(x) || "금액 미입력"}${x.note ? " · " + x.note : ""}`),
           ...x.segments.flatMap((g, i) => [
             h("div", { class: "sub", style: "color:var(--text,inherit)" }, segText(g)),
-            x.layovers[i] ? h("div", { class: "sub", style: "padding-left:14px" }, `↳ ${x.layovers[i].at} 경유 ${span(x.layovers[i].minutes)}${x.layovers[i].airportChange ? ` (공항 변경 → ${x.layovers[i].to})` : ""}`) : null,
+            x.layovers[i] ? layoverLine(x.layovers[i]) : null,
           ])),
         h("button", { class: "btn sm", onclick: () => editFlight(x) }, "편집"))),
+      );
+    const hotelsCard = h("div", { class: "card" }, head("숙소", T.hotels.length, h("button", { class: "btn sm", onclick: () => editHotel({ checkIn: links.dates.checkIn, checkOut: links.dates.checkOut }) }, "+ 숙소")),
+      T.hotels.length ? null : h("div", { class: "sub" }, "아직 숙소 기록이 없어요."),
       ...T.hotels.map((x) => h("div", { class: "row" }, h("span", { class: "pill gray" }, "숙소"), h("div", { class: "grow" }, h("b", {}, `${x.name} ${x.stars ? x.stars + "성" : ""}`), h("div", { class: "sub" }, `${x.checkIn} ~ ${x.checkOut} · 예약번호 ${x.confirmation || "-"} · ${money(x) || "금액 미입력"}${x.freeCancelUntil ? " · 무료취소 ~" + when(x.freeCancelUntil) : ""}`), x.address ? h("div", { class: "sub" }, x.address) : null),
         h("button", { class: "btn sm", onclick: () => editHotel(x) }, "편집"))),
+      );
+    const notes = [
       Object.keys(summary.totals).length ? h("div", { class: "msg" }, "합계: " + Object.entries(summary.totals).map(([k, v]) => `${v.toLocaleString()} ${k}`).join(" + ") + " (통화는 합치지 않았어요)") : null,
-      summary.issues.length ? h("div", { class: "msg warn" }, h("ul", { style: "margin:0;padding-left:18px" }, ...summary.issues.map((i) => h("li", {}, i)))) : null);
-
-    host.replaceChildren(settings, search, cand, rec);
+      summary.issues.length ? h("div", { class: "msg warn" }, h("ul", { style: "margin:0;padding-left:18px" }, ...summary.issues.map((i) => h("li", {}, i)))) : null
+    ];
+    // 매일 보는 '예약 기록'을 맨 위에 두고, 한 번 정하면 거의 안 바꾸는 이동 조건·검색 바로가기는 접어 둔다(기록이 아직 없으면 펼쳐 둔다)
+    const acc = (key, title, brief, body, dflt) => {
+      const d = h("details", { class: "acc", ...(((key in P.travelOpen) ? P.travelOpen[key] : dflt) ? { open: "" } : {}) }, h("summary", {}, h("b", {}, title), h("span", { class: "sub" }, brief)), body);
+      d.addEventListener("toggle", () => { P.travelOpen[key] = d.open; });
+      return d;
+    };
+    P.travelOpen = P.travelOpen || {};
+    const empty = !T.flights.length && !T.hotels.length;
+    host.replaceChildren(flightsCard, hotelsCard, ...notes, cand,
+      acc("cond", "이동 조건", `${T.origin || "?"} → ${T.destination || "?"} · ${links.dates.out.slice(5)} ~ ${links.dates.ret.slice(5)} · 호텔 ${T.minStars}~${T.maxStars}성`, settings, empty),
+      acc("search", "검색 바로가기 · AI 후보 프롬프트", "Google 항공편 · Skyscanner · Agoda · Booking.com …", search, empty));
   }
 
   function askAi(kind) {
