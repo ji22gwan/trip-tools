@@ -297,6 +297,7 @@ export function openLocal(trip) {
     <a class="card stack" style="gap:3px;text-decoration:none;color:inherit" target="_blank" rel="noopener noreferrer" href="${dirUrl(m.mapQuery || m.name, "walking")}">
       <div class="row" style="justify-content:space-between"><b>${m.fav ? "★ " : ""}${esc(m.name)}</b>${m.meal ? `<span class="pill pill-blue">${esc(m.meal)}</span>` : ""}</div>
       <div class="small muted">${esc([m.cuisine, m.price].filter(Boolean).join(" · "))}</div>
+      ${m.rating || m.reviewSummary ? `<div class="small" style="${Number(m.rating) && Number(m.rating) < 4 ? "color:#b45309" : ""}">${m.rating ? `<b>★ ${esc(m.rating)}</b>${m.reviews ? ` (${esc(m.reviews)})` : ""}` : ""}${m.checkedAt ? ` <span class="muted">${esc(m.checkedAt)} 확인</span>` : ""}${m.reviewSummary ? `<div>${esc(m.reviewSummary)}</div>` : ""}${m.dishes ? `<div class="muted">대표 메뉴: ${esc(m.dishes)}</div>` : ""}</div>` : ""}
       ${m.where ? `<div class="small">📍 ${esc(m.where)}</div>` : ""}${m.hours ? `<div class="small">🕒 ${esc(m.hours)}</div>` : ""}
       ${m.why ? `<div class="small">${esc(m.why)}</div>` : ""}${m.tip ? `<div class="small muted">팁: ${esc(m.tip)}</div>` : ""}
       <div class="small" style="color:var(--blue,#2563eb);font-weight:700">🧭 내 위치에서 길찾기 (구글 지도)</div>

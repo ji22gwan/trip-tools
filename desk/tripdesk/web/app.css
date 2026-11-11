@@ -214,3 +214,5 @@ label.chk:focus-within{outline:3px solid var(--blue);outline-offset:2px}
 .grp{border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
 .btn.ic{width:36px;padding:0;justify-content:center}
 .btn.star{color:var(--sub)}.btn.star.on{color:#B26B00}
+.rev{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;line-height:1.5}
+.rev.low{background:#fffbeb;border-color:#fcd34d}

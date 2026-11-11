@@ -379,9 +379,11 @@ def test_local_meals_and_transport(store):
         local.build_meal_prompt(store, tid, [])
     tp = local.build_transport_prompt(store, tid, ["arr-hotel", "hotel-venue"])
     assert "leg=arr-hotel" in tp and "leg=hotel-venue" in tp and "leg=hotel-dep" not in tp and "Messe Nürnberg" in tp and "무임승차" in tp and '"routes"' in tp
-    ans = "```json\n" + json.dumps({"places": [{"ref": refs[0], "name": "Cafe A", "meal": "점심", "price": "12유로", "sourceUrl": "javascript:x"}, {"ref": "evil", "name": "B"}, {"name": ""}]}) + "\n```"
+    ans = "```json\n" + json.dumps({"places": [{"ref": refs[0], "name": "Cafe A", "meal": "점심", "price": "12유로", "sourceUrl": "javascript:x", "rating": "4,5/5", "reviews": "약 300건", "reviewSummary": "좋은 점: 빠름"}, {"ref": "evil", "name": "B"}, {"name": ""}]}) + "\n```"
     assert local.paste(store, tid, "meals", ans) == {"added": 2, "updated": 0}
     m = local.get(store, tid)["meals"]
+    assert m[0]["rating"] == "4.5" and m[0]["reviewSummary"] == "좋은 점: 빠름" and m[1]["rating"] == ""
+    assert local._rating("9") == "" and local._rating("없음") == "" and '"rating"' in p and "지어" in p
     assert m[0]["sourceUrl"] == "" and m[1]["ref"] == ""
     local.save(store, tid, {"meals": [dict(m[0], fav=True), m[1]]})
     assert local.paste(store, tid, "meals", ans) == {"added": 0, "updated": 2} and local.get(store, tid)["meals"][0]["fav"] is True

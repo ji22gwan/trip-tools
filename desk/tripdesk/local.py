@@ -18,6 +18,15 @@ def _s(v, n=200) -> str:
     return travel._s(v, n)
 
 
+def _rating(v) -> str:
+    """별점은 0~5 숫자만 받는다. '4.5/5', '4,5' 같은 표기는 숫자로 정리하고, 범위를 벗어나면 비운다."""
+    m = re.search(r"\d+(?:[.,]\d+)?", str(v or ""))
+    if not m:
+        return ""
+    n = float(m.group(0).replace(",", "."))
+    return f"{n:g}" if 0 < n <= 5 else ""
+
+
 def _clean_place(x) -> dict | None:
     if not isinstance(x, dict) or not _s(x.get("name"), 120):
         return None
@@ -28,6 +37,8 @@ def _clean_place(x) -> dict | None:
         "name": _s(x.get("name"), 120), "cuisine": _s(x.get("cuisine"), 80), "meal": _s(x.get("meal"), 30),
         "price": _s(x.get("price"), 80), "where": _s(x.get("where"), 200), "hours": _s(x.get("hours"), 160),
         "why": _s(x.get("why"), 400), "tip": _s(x.get("tip"), 300), "sourceUrl": travel._url(x.get("sourceUrl")),
+        "rating": _rating(x.get("rating")), "reviews": _s(x.get("reviews"), 30), "reviewSummary": _s(x.get("reviewSummary"), 400),
+        "dishes": _s(x.get("dishes"), 160), "ratingSource": _s(x.get("ratingSource"), 60), "checkedAt": _s(x.get("checkedAt"), 20),
         "fav": x.get("fav") is True,
     }
 
@@ -125,7 +136,7 @@ def _hotel_line(h: dict) -> str:
 
 
 _MEAL_JSON = ('{"places":[{"ref":"(아래 \'대상\'의 ref 값을 그대로)","area":"FRA 공항 T1 / 호텔 주변","name":"가게 이름(현지 표기)","cuisine":"독일 가정식","meal":"점심",'
-              '"price":"1인 약 12~18유로","where":"보안검색 후 B구역 / 호텔에서 도보 6분","hours":"월~토 11:00~22:00, 일 휴무","why":"혼자 먹기 편하고 주문이 빠름","tip":"점심 피크 12시 전후엔 줄이 김","sourceUrl":""}],"notes":""}')
+              '"price":"1인 약 12~18유로","where":"보안검색 후 B구역 / 호텔에서 도보 6분","hours":"월~토 11:00~22:00, 일 휴무","why":"혼자 먹기 편하고 주문이 빠름","tip":"점심 피크 12시 전후엔 줄이 김","rating":"4.4","reviews":"약 1,200건","reviewSummary":"좋은 점: 빠른 서빙·양 많음 / 아쉬운 점: 피크 시간 대기","dishes":"대표 메뉴 2~3개","ratingSource":"Google 지도","checkedAt":"2026-11-11","sourceUrl":""}],"notes":""}')
 
 
 def build_meal_prompt(store: Store, tid: str, refs: list[str], prefs: str = "") -> str:
@@ -164,6 +175,8 @@ def build_meal_prompt(store: Store, tid: str, refs: list[str], prefs: str = "") 
         + "현지 휴무일(예: 독일은 일요일·공휴일에 대부분 휴무)과 점심 휴게시간, 라스트 오더 시각을 출장 날짜 기준으로 확인해 주세요. 혼자 가기 편한 곳(바 좌석·빠른 회전)을 우선하세요.",
         "3. 대상마다 3~5곳, 서로 종류가 겹치지 않게(현지식·가벼운 한 끼·아시안/한식·카페·마트/베이커리 등) 골라 주세요. 평점 숫자만 보지 말고 최근 리뷰의 영업 상태(폐업·이전 여부)를 확인하세요.",
         "4. 가격은 1인 기준 대략값(통화 표기)으로, 주소나 구역은 지도 앱에서 찾을 수 있게 적어 주세요. 확인하지 못한 영업시간·가격은 '미확인'이라고 쓰고 절대 지어내지 마세요. sourceUrl 에 근거(지도·공식 사이트) 주소를 넣어 주세요.",
+        "4-1. 평판: 구글 지도 평점(rating, 숫자만 예: 4.4)과 리뷰 수(reviews), 최근 리뷰 위주의 요약(reviewSummary: '좋은 점: … / 아쉬운 점: …' 형식, 광고·과장 리뷰는 제외), 많이 언급되는 대표 메뉴(dishes), 출처(ratingSource)와 확인한 날짜(checkedAt)를 적어 주세요. "
+        "리뷰 수가 매우 적거나(약 30건 미만) 최근 리뷰가 부정적이면 그 점을 reviewSummary 에 분명히 쓰세요. 지도·리뷰 페이지를 직접 확인하지 못했다면 rating·reviews 는 빈 문자열로 두세요. 기억에 의존한 숫자는 쓰지 마세요.",
         "5. 각 장소에 '왜 추천하는지'(한 줄)와 주문·예약 팁을 넣고, 답변 본문에는 대상별 추천 순서와 한 줄 요약도 적어 주세요.",
     ]
     return "\n".join(L) + travel._json_tail(_MEAL_JSON)
