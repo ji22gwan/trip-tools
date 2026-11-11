@@ -182,6 +182,7 @@ function candsTab(s) {
   const bulk = h("div", { class: "row", style: "padding:6px 2px;gap:8px" },
     h("button", { class: "btn sm", disabled: selN === shown.length, onclick: () => setAll(true) }, `전체 선택 (${shown.length}곳)`),
     h("button", { class: "btn sm", disabled: !selN, onclick: () => setAll(false) }, "전체 해제"),
+    h("button", { class: "btn sm", onclick: () => openBulkQuestions(shown) }, "질문 일괄 추가…"),
     h("button", { class: "btn sm danger", onclick: openDelete }, "삭제…"),
     h("span", { class: "sub" }, `보이는 ${shown.length}곳 중 ${selN}곳 선택`));
   const perDay = P.v.trip.days.map((_, i) => cs.filter((c) => c.picked !== false).flatMap(bs).filter((b) => b.day === i + 1).length);
@@ -381,6 +382,50 @@ function openCloudPackages() {
       h("div", { class: "row", style: "justify-content:space-between" },
         h("button", { class: "btn", onclick: () => load("새로고침 중…") }, "새로고침"), h("button", { class: "btn", onclick: close }, "닫기")));
     load("불러오는 중…");
+  });
+}
+
+// ---------------- 질문 일괄 추가 ----------------
+// 지금 보이는 업체(필터·검색 적용)에 같은 질문 세트를 한 번에 넣는다. 이미 있는 질문은 건너뛰고 새 질문만 뒤에 붙인다.
+function openBulkQuestions(shown) {
+  modal("질문 일괄 추가", (m, close) => {
+    const picked = shown.filter((c) => c.picked !== false);
+    const qp = questionPicker([]);
+    const scope = h("select", { "aria-label": "대상 업체" },
+      h("option", { value: "picked" }, `보이는 업체 중 선택한 곳 (${picked.length}곳)`),
+      h("option", { value: "all" }, `보이는 업체 전체 (${shown.length}곳)`));
+    const replaceBox = h("input", { type: "checkbox", id: "qReplace" });
+    const norm = (t) => String(t).replace(/\s+/g, " ").trim().toLowerCase();
+    m.append(
+      h("div", { class: "msg" }, "아래에서 고른 질문을 대상 업체의 '확인할 질문' 에 추가해요. 이미 같은 질문이 있으면 건너뛰고, 업체마다 새 질문만 뒤에 붙여요. 필터를 '전체'로 두면 모든 후보가 대상이에요."),
+      h("div", { class: "field" }, h("label", {}, "대상"), scope),
+      h("div", { class: "field" }, h("label", {}, "추가할 질문"), qp.el),
+      h("label", { class: "row", style: "gap:8px;font-size:13px" }, replaceBox, "기존 질문은 지우고 이 질문들로 바꾸기"),
+      h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn", onclick: close }, "취소"),
+        h("button", { class: "btn primary", onclick: () => {
+          const add = qp.get();
+          if (!add.length) return toast("추가할 질문을 하나 이상 골라 주세요.", true);
+          const targets = new Set((scope.value === "all" ? shown : picked).map((c) => c.id));
+          if (!targets.size) return toast("대상 업체가 없어요.", true);
+          const replace = replaceBox.checked;
+          const apply = () => {
+            let touched = 0;
+            const list = P.v.companies.map((c) => {
+              if (!targets.has(c.id)) return c;
+              const base = replace ? [] : (c.questions || []);
+              const have = new Set(base.map(norm));
+              const extra = add.filter((t) => !have.has(norm(t)));
+              if (!extra.length && !replace) return c;
+              touched++;
+              return { ...c, questions: [...base, ...extra] };
+            });
+            close();
+            guard(async () => { await saveCompanies(list); toast(`${touched}곳에 질문을 반영했어요.`); });
+          };
+          if (replace) confirmBox("질문 바꾸기", `대상 ${targets.size}곳의 기존 질문이 모두 지워지고 새 질문 ${add.length}개로 바뀌어요. 계속할까요?`, "바꾸기", apply, true);
+          else apply();
+        } }, "추가"))
+    );
   });
 }
 
