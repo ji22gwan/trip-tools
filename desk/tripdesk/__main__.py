@@ -5,7 +5,7 @@ import threading
 import time
 import webbrowser
 
-from . import launcher
+from . import auth, launcher, mapfinder
 from .server import serve
 from .store import Store, data_dir
 
@@ -15,7 +15,35 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="브라우저를 열지 않는다")
     ap.add_argument("--app", action="store_true", help="주소창 없는 앱 창으로 열고, 창을 닫으면 종료한다")
+    ap.add_argument("--server", action="store_true", help="서버 모드: 로그인 필수, 브라우저를 열지 않고 계속 실행한다")
+    ap.add_argument("--set-password", action="store_true", help="서버 모드 비밀번호를 정한다")
     a = ap.parse_args()
+
+    if a.set_password:
+        import getpass
+
+        pw = os.environ.get("TRIPDESK_PASSWORD") or getpass.getpass("새 비밀번호: ")
+        try:
+            auth.set_password(data_dir(), pw)
+        except ValueError as e:
+            sys.exit(str(e))
+        print(f"비밀번호를 저장했어요: {auth.auth_file(data_dir())}")
+        return
+
+    if a.server:
+        if not auth.auth_file(data_dir()).is_file():
+            sys.exit("서버 모드는 비밀번호가 필요해요. 먼저 실행하세요: python3 -m tripdesk --set-password")
+        # 리버스 프록시(HTTPS) 뒤에서 쓸 때: TRIPDESK_ALLOWED_HOSTS=trip.example.com TRIPDESK_SECURE_COOKIE=1
+        hosts = [h.strip() for h in os.environ.get("TRIPDESK_ALLOWED_HOSTS", "").split(",") if h.strip()]
+        mapfinder.PUBLIC_ONLY = True
+        httpd, port = serve(Store(), a.port, host=os.environ.get("TRIPDESK_HOST", "127.0.0.1"), allowed_hosts=hosts,
+                            auth=auth.Auth(data_dir(), secure_cookie=os.environ.get("TRIPDESK_SECURE_COOKIE") == "1"))
+        print(f"Trip Desk 서버 모드: http://{httpd.server_address[0]}:{port}/\n데이터 폴더: {data_dir()}\n종료: Ctrl+C", flush=True)
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("종료합니다.")
+        return
 
     if a.app:
         # 터미널 없이 실행되므로 오류가 사라지지 않게 로그 파일에 남긴다

@@ -39,7 +39,9 @@ function drawSide() {
     item("일간 보고서", trip ? `#/daily/${trip.id}/${lastDay}` : "#/trips", "daily", "", true),
     item("최종 보고서", trip ? `#/final/${trip.id}` : "#/trips", "final", "", true),
     h("div", { class: "grow" }),
-    h("button", { class: "nav", style: "height:38px;font-size:13px", onclick: quitApp }, "프로그램 종료"),
+    serverMode
+      ? h("button", { class: "nav", style: "height:38px;font-size:13px", onclick: logout }, "로그아웃")
+      : h("button", { class: "nav", style: "height:38px;font-size:13px", onclick: quitApp }, "프로그램 종료"),
     trip ? h("div", { class: "cur" }, h("i", {}, "현재 출장"), h("b", {}, trip.name), h("i", {}, trip.venue || fmtDate(trip.days[0]))) : null);
 }
 
@@ -114,10 +116,18 @@ function quitApp() {
   });
 }
 
-// 앱 창 자동 종료를 위한 신호. 창을 닫으면 신호가 끊겨 서버가 스스로 끝나요.
-const beat = () => fetch("/api/ping").catch(() => {});
-beat();
-setInterval(beat, 5000);
+async function logout() {
+  try { await api("POST", "/logout", {}); } catch {}
+  location.reload();
+}
 
-window.addEventListener("hashchange", route);
-route();
+// 앱 창 자동 종료를 위한 신호. 창을 닫으면 신호가 끊겨 서버가 스스로 끝나요.
+const beat = () => fetch("/api/ping").then((r) => r.json()).catch(() => ({}));
+// 서버 모드(로그인 필수)인지 먼저 확인한 뒤 화면을 그린다
+let serverMode = false;
+beat().then((p) => {
+  serverMode = p.server === true;
+  setInterval(beat, 5000);
+  window.addEventListener("hashchange", route);
+  route();
+});

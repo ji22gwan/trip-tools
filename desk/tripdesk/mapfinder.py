@@ -68,12 +68,42 @@ def _check_url(url: str) -> str:
     return url
 
 
+# 서버 모드에서 켠다. 서버가 자기 내부망 주소를 대신 읽어 주는 일을 막는다.
+PUBLIC_ONLY = False
+
+
+def _assert_public(url: str) -> None:
+    import ipaddress
+    import socket
+
+    host = urllib.parse.urlparse(url).hostname or ""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        raise MapError("주소를 찾을 수 없어요.")
+    for info in infos:
+        if not ipaddress.ip_address(info[4][0]).is_global:
+            raise MapError("이 주소에서는 내려받을 수 없어요. 파일을 직접 올려 주세요.")
+
+
+class _PublicRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if PUBLIC_ONLY:
+            _assert_public(newurl)  # 공개 주소가 내부 주소로 넘기는 경우
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_opener = urllib.request.build_opener(_PublicRedirects)
+
+
 def fetch(url: str, timeout: int = 30, limit: int = MAX_BYTES) -> tuple[bytes, str, str]:
     """(본문, content-type, 최종 URL)"""
     url = _check_url(url)
+    if PUBLIC_ONLY:
+        _assert_public(url)
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", "Accept-Language": "en,de;q=0.8,ko;q=0.6"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with _opener.open(req, timeout=timeout) as r:
             chunks, total = [], 0
             while True:
                 b = r.read(1 << 20)

@@ -28,6 +28,7 @@ export async function api(method, path, body, opts = {}) {
   const init = { method, headers: { "X-TripDesk": "1" } };
   if (body !== undefined) init.body = opts.raw ? body : JSON.stringify(body);
   const r = await fetch("/api" + path, init);
+  if (r.status === 401 && path !== "/login") location.reload(); // 서버 모드: 로그인이 풀렸으면 로그인 화면으로
   if (opts.blob && r.ok) return r.blob();
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || "오류 " + r.status);

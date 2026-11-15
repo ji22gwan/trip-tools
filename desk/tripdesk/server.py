@@ -12,6 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from . import auth as auth_mod
 from . import booths, cloud, local, planreport, companies_io, daily, dayai, mapfinder, package, pptdata, sessions, reports, research, transcribe, travel
 from .store import Store, StoreError
 
@@ -44,6 +45,7 @@ class Api:
         self._lock = threading.Lock()
         self.last_ping = 0.0  # 화면이 보낸 마지막 신호(앱 창 자동 종료 판단용)
         self.httpd = None
+        self.server_mode = False  # 서버 모드: 로그인 필수, 화면에서 끌 수 없다
 
     def trip_view(self, tid):
         s = self.store
@@ -61,11 +63,13 @@ class Api:
     @route("GET", r"/api/ping")
     def ping(self, m, q, body):
         self.last_ping = time.time()
-        return {"tripdesk": True}
+        return {"tripdesk": True, "server": self.server_mode}
 
     @route("POST", r"/api/quit")
     def quit(self, m, q, body):
         """화면의 '종료' 버튼. 응답을 보낸 뒤 서버를 끈다."""
+        if self.server_mode:
+            raise StoreError("서버 모드에서는 화면에서 종료할 수 없어요.")
         if self.httpd:
             threading.Timer(0.3, self.httpd.shutdown).start()
         return {"ok": True}
@@ -616,7 +620,7 @@ class Api:
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
-def make_handler(api: Api, port_getter):
+def make_handler(api: Api, port_getter, auth=None, allowed_hosts=()):
     class H(BaseHTTPRequestHandler):
         server_version = "TripDesk"
 
@@ -638,7 +642,39 @@ def make_handler(api: Api, port_getter):
 
         def _host_ok(self):
             port = port_getter()
-            return self.headers.get("Host", "") in (f"127.0.0.1:{port}", f"localhost:{port}")
+            return self.headers.get("Host", "") in (f"127.0.0.1:{port}", f"localhost:{port}", *allowed_hosts)
+
+        def _auth(self, method, path):
+            """서버 모드 로그인. 요청을 여기서 끝냈으면 True."""
+            cookie = self.headers.get("Cookie")
+            if method == "POST" and path == "/api/login":
+                n = int(self.headers.get("Content-Length") or 0)
+                if n > 4096:
+                    self._json(413, {"error": "요청이 너무 커요."})
+                    return True
+                try:
+                    token = auth.login(json.loads(self.rfile.read(n) or b"{}").get("password"))
+                except PermissionError:
+                    self._json(429, {"error": "너무 여러 번 틀렸어요. 잠시 뒤에 다시 해 보세요."})
+                    return True
+                except (ValueError, AttributeError):
+                    token = None
+                if not token:
+                    self._json(401, {"error": "비밀번호가 맞지 않아요."})
+                else:
+                    self._send(200, b'{"ok": true}', extra={"Set-Cookie": auth.cookie(token)})
+                return True
+            if method == "POST" and path == "/api/logout":
+                auth.logout(cookie)
+                self._send(200, b'{"ok": true}', extra={"Set-Cookie": auth.cookie(None)})
+                return True
+            if auth.valid(cookie):
+                return False
+            if method == "GET" and not path.startswith("/api/") and "." not in path.rsplit("/", 1)[-1]:
+                self._send(200, auth_mod.LOGIN_PAGE.encode(), "text/html; charset=utf-8")  # 화면 주소 → 로그인 화면
+            else:
+                self._json(401, {"error": "로그인이 필요해요."})
+            return True
 
         def _handle(self, method):
             if not self._host_ok():
@@ -647,6 +683,8 @@ def make_handler(api: Api, port_getter):
             q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
             if method != "GET" and self.headers.get("X-TripDesk") != "1":
                 return self._json(403, {"error": "잘못된 요청이에요."})
+            if auth and self._auth(method, u.path):
+                return
             if method == "GET" and not u.path.startswith("/api/"):
                 return self._static(u.path)
             n = int(self.headers.get("Content-Length") or 0)
@@ -725,10 +763,12 @@ def make_handler(api: Api, port_getter):
     return H
 
 
-def serve(store: Store | None = None, port: int = 0, with_api: bool = False):
+def serve(store: Store | None = None, port: int = 0, with_api: bool = False, *, host: str = "127.0.0.1", auth=None, allowed_hosts=()):
+    """auth 를 주면 서버 모드: 로그인 필수, 화면의 종료 버튼 비활성화, 지도 내려받기는 공개 주소만."""
     api = Api(store or Store())
+    api.server_mode = auth is not None
     holder = {}
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(api, lambda: holder["port"]))
+    httpd = ThreadingHTTPServer((host, port), make_handler(api, lambda: holder["port"], auth, tuple(allowed_hosts)))
     api.httpd = httpd
     holder["port"] = httpd.server_address[1]
     return (httpd, holder["port"], api) if with_api else (httpd, holder["port"])
