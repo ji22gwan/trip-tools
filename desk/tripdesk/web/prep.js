@@ -41,7 +41,7 @@ function draw() {
   const { trip } = P.v;
   const s = stats();
   const steps = [
-    ["출장 정보", true, () => { if (WIDE.has(P.tab)) { P.tab = "cands"; redraw(); } P.root.querySelector(".leftcol input")?.focus(); }],
+    ["출장 정보", true, () => P.root.querySelector(".leftcol input")?.focus()],
     ["후보 수집", s.all > 0, () => goTab("cands")],
     ["후보·일정", s.picked > 0 && s.dated === s.stops, () => goTab(s.picked ? "plan" : "cands")],
     ["패키지 확정", getFlag(P.tid), confirmPackage],
@@ -63,8 +63,7 @@ function draw() {
       kpi("선택한 업체", s.picked, s.unverified ? `참가 미확인 ${s.unverified}곳` : "폰으로 보낼 업체", true),
       kpi("일정 배정", `${s.dated}/${s.stops}`, s.stops > s.picked ? `부스 기준 · 업체 ${s.picked}곳` : trip.days.length + "일 일정"),
       kpi("전시장 지도", s.maps, s.maps ? "대표 1장을 폰에 보내요" : "아직 없어요")),
-    // 일정 배분·항공·숙소·식사·이동은 내용이 넓어서 왼쪽 '출장 정보' 열 없이 패널을 전체 폭으로 쓴다 (후보 업체 등은 그대로)
-    h("div", { class: "cols" }, ...(WIDE.has(P.tab) ? [] : [leftCol(s)]), panel(s)),
+    h("div", { class: "cols" }, leftCol(s), panel(s)),
   );
 }
 
@@ -110,10 +109,10 @@ function leftCol(s) {
 
 // ---------------- 오른쪽: 탭 ----------------
 function panel(s) {
-  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["local", "식사·이동"], ["gloss", "용어집"]];
+  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["local", "식사·이동"], ["ques", `예상 질문 ${(P.v.trip.questions || []).length || ""}`.trim()], ["gloss", "용어집"]];
   return h("div", { class: "panel" + (WIDE.has(P.tab) ? " wide" : "") },
     h("div", { class: "tabs", role: "tablist" }, ...tabs.map(([k, label]) => h("button", { class: P.tab === k ? "on" : "", role: "tab", onclick: () => { P.tab = k; redraw(); } }, label))),
-    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : P.tab === "local" ? localTab(P) : glossTab(),
+    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : P.tab === "local" ? localTab(P) : P.tab === "ques" ? quesTab() : glossTab(),
   );
 }
 
@@ -182,7 +181,6 @@ function candsTab(s) {
   const bulk = h("div", { class: "row", style: "padding:6px 2px;gap:8px" },
     h("button", { class: "btn sm", disabled: selN === shown.length, onclick: () => setAll(true) }, `전체 선택 (${shown.length}곳)`),
     h("button", { class: "btn sm", disabled: !selN, onclick: () => setAll(false) }, "전체 해제"),
-    h("button", { class: "btn sm", onclick: () => openBulkQuestions(shown) }, "질문 일괄 추가…"),
     h("button", { class: "btn sm danger", onclick: openDelete }, "삭제…"),
     h("span", { class: "sub" }, `보이는 ${shown.length}곳 중 ${selN}곳 선택`));
   const perDay = P.v.trip.days.map((_, i) => cs.filter((c) => c.picked !== false).flatMap(bs).filter((b) => b.day === i + 1).length);
@@ -385,48 +383,17 @@ function openCloudPackages() {
   });
 }
 
-// ---------------- 질문 일괄 추가 ----------------
-// 지금 보이는 업체(필터·검색 적용)에 같은 질문 세트를 한 번에 넣는다. 이미 있는 질문은 건너뛰고 새 질문만 뒤에 붙인다.
-function openBulkQuestions(shown) {
-  modal("질문 일괄 추가", (m, close) => {
-    const picked = shown.filter((c) => c.picked !== false);
-    const qp = questionPicker([]);
-    const scope = h("select", { "aria-label": "대상 업체" },
-      h("option", { value: "picked" }, `보이는 업체 중 선택한 곳 (${picked.length}곳)`),
-      h("option", { value: "all" }, `보이는 업체 전체 (${shown.length}곳)`));
-    const replaceBox = h("input", { type: "checkbox", id: "qReplace" });
-    const norm = (t) => String(t).replace(/\s+/g, " ").trim().toLowerCase();
-    m.append(
-      h("div", { class: "msg" }, "아래에서 고른 질문을 대상 업체의 '확인할 질문' 에 추가해요. 이미 같은 질문이 있으면 건너뛰고, 업체마다 새 질문만 뒤에 붙여요. 필터를 '전체'로 두면 모든 후보가 대상이에요."),
-      h("div", { class: "field" }, h("label", {}, "대상"), scope),
-      h("div", { class: "field" }, h("label", {}, "추가할 질문"), qp.el),
-      h("label", { class: "row", style: "gap:8px;font-size:13px" }, replaceBox, "기존 질문은 지우고 이 질문들로 바꾸기"),
-      h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn", onclick: close }, "취소"),
-        h("button", { class: "btn primary", onclick: () => {
-          const add = qp.get();
-          if (!add.length) return toast("추가할 질문을 하나 이상 골라 주세요.", true);
-          const targets = new Set((scope.value === "all" ? shown : picked).map((c) => c.id));
-          if (!targets.size) return toast("대상 업체가 없어요.", true);
-          const replace = replaceBox.checked;
-          const apply = () => {
-            let touched = 0;
-            const list = P.v.companies.map((c) => {
-              if (!targets.has(c.id)) return c;
-              const base = replace ? [] : (c.questions || []);
-              const have = new Set(base.map(norm));
-              const extra = add.filter((t) => !have.has(norm(t)));
-              if (!extra.length && !replace) return c;
-              touched++;
-              return { ...c, questions: [...base, ...extra] };
-            });
-            close();
-            guard(async () => { await saveCompanies(list); toast(`${touched}곳에 질문을 반영했어요.`); });
-          };
-          if (replace) confirmBox("질문 바꾸기", `대상 ${targets.size}곳의 기존 질문이 모두 지워지고 새 질문 ${add.length}개로 바뀌어요. 계속할까요?`, "바꾸기", apply, true);
-          else apply();
-        } }, "추가"))
-    );
-  });
+// ---------------- 예상 질문 (출장 공통: 모든 업체에 보여요) ----------------
+function quesTab() {
+  const qp = questionPicker(P.v.trip.questions || []);
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px" },
+    h("div", { class: "msg" }, "여기서 고른 질문은 모든 업체의 '물어볼 것'에 똑같이 들어가요. 저장한 뒤 패키지를 다시 확정해 폰으로 보내 주세요."),
+    qp.el,
+    h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => guard(async () => {
+      P.v = await api("PATCH", "/trips/" + P.tid, { questions: qp.get() });
+      toast("저장했어요.");
+      redraw();
+    }) }, "예상 질문 저장")));
 }
 
 // ---------------- 업체 편집/추가 ----------------
@@ -436,7 +403,6 @@ function openCompanyEditor(c) {
       name: h("input", { value: c?.name || "" }), category: h("input", { value: c?.category || "", placeholder: "예) 협동로봇" }),
       preNotes: h("textarea", { value: c?.preNotes || "", placeholder: "사전 메모 (폰에서 업체 화면에 보여요)" }),
     };
-    const qp = questionPicker(c?.questions || []);
     const fld = (l, el) => h("div", { class: "field" }, h("label", {}, l), el);
     // 부스가 여러 곳이면 줄을 늘린다. 업체(체크박스)는 1개로 세고, 일정 배분만 부스별로 나뉜다.
     const rows = [];
@@ -450,13 +416,13 @@ function openCompanyEditor(c) {
     (c ? bs(c) : [{}]).forEach(addRow);
     m.append(fld("업체명", f.name), fld("카테고리", f.category), h("div", { class: "field" }, h("label", {}, "홀 · 부스 (여러 곳이면 + 로 추가)"), boothBox,
       h("button", { class: "btn sm", style: "align-self:flex-start;margin-top:4px", onclick: () => addRow({}) }, "+ 부스 추가")),
-      fld("사전 메모", f.preNotes), fld("확인할 질문 (폰에서 영어·현지어로 번역해 보여줘요)", qp.el));
+      fld("사전 메모", f.preNotes));
     if (c?.reason) m.append(h("div", { class: "msg" }, "AI가 적은 이유: " + c.reason));
     m.append(h("div", { class: "row", style: "justify-content:space-between" },
       c ? h("button", { class: "btn danger", onclick: () => confirmBox("업체 삭제", `'${c.name}' 을(를) 목록에서 지울까요?`, "삭제", () => guard(() => saveCompanies(P.v.companies.filter((x) => x.id !== c.id))), true) }, "삭제") : h("span"),
       h("button", { class: "btn primary", onclick: () => {
         if (!f.name.value.trim()) return toast("업체명을 입력해 주세요.", true);
-        const data = { name: f.name.value.trim(), category: f.category.value.trim() || "기타", booths: rows.map((r) => ({ ...r.b, hall: r.hall.value.trim(), booth: r.booth.value.trim() })).filter((b) => b.hall || b.booth), preNotes: f.preNotes.value, questions: qp.get() };
+        const data = { name: f.name.value.trim(), category: f.category.value.trim() || "기타", booths: rows.map((r) => ({ ...r.b, hall: r.hall.value.trim(), booth: r.booth.value.trim() })).filter((b) => b.hall || b.booth), preNotes: f.preNotes.value };
         const list = c ? P.v.companies.map((x) => (x.id === c.id ? { ...x, ...data } : x))
           : [...P.v.companies, { id: "c-" + Math.random().toString(16).slice(2, 10), picked: true, source: "manual", ...data }];
         close();

@@ -146,6 +146,8 @@ class Store:
             trip["coreKeywords"] = [have[c.casefold()] for c in dict.fromkeys(str(x).strip() for x in core) if c.casefold() in have]
         if isinstance(fields.get("keywordCount"), int) and 5 <= fields["keywordCount"] <= 100:
             trip["keywordCount"] = fields["keywordCount"]
+        if isinstance(fields.get("questions"), list):  # 모든 업체에 공통으로 보이는 예상 질문
+            trip["questions"] = list(dict.fromkeys(str(x).strip() for x in fields["questions"] if str(x).strip()))
         if "hallPins" in fields:
             trip["hallPins"] = clean_hall_pins(fields["hallPins"])
         if "start" in fields and fields["start"]:

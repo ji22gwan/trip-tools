@@ -38,6 +38,7 @@ rows, _ = companies_io.parse_companies("l.csv", "업체명,카테고리,홀,부�
 s.set_companies(t["id"], companies_io.merge_companies([], rows)[0])
 s.set_glossary(t["id"], ["EtherCAT"])
 travel.save(s, t["id"], {"hotels": [{"name": "Hotel X", "stars": 4, "address": "Hauptstr. 1", "checkIn": "2026-11-24", "checkOut": "2026-11-25", "confirmation": "H1"}]})
+s.update_trip(t["id"], questions=["공통 질문", "가격"])
 s.update_trip(t["id"], hallPins={"Hall 3A": {"x": 0.25, "y": 0.5, "page": 0}})
 name, data = package.build_package(s, t["id"])
 sys.stdout.buffer.write(data)
@@ -67,7 +68,8 @@ test("Trip Desk 패키지를 폰 앱이 불러온다", async () => {
   assert.deepEqual(model.hallMarkers(cs, 2, r.trip.hallPins).missing, ["3"]); // 2일차 B사 홀 3 은 위치 미지정
   const a = cs.find((c) => c.name === "A사");
   assert.equal(a.day, 1);
-  assert.deepEqual(a.questions.map((q) => q.text), ["가동 시간", "가격"]);
+  assert.deepEqual(a.questions.map((q) => q.text), ["공통 질문", "가격", "가동 시간"]); // 출장 공통 질문이 먼저, 중복은 한 번만
+  assert.deepEqual(cs.find((c) => c.name === "B사").questions.map((q) => q.text), ["공통 질문", "가격"]);
   // 다시 불러오면 갱신으로 처리돼 방문 기록이 이어진다
   await model.setVisited(a, 1, true);
   const again = await importTripPackage(buf);

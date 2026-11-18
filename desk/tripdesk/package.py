@@ -89,7 +89,7 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         st = booths.stops(c)
         for x in st:
             item = {"id": x["id"], "name": c["name"], "category": c.get("category") or "기타", "hall": x["hall"], "booth": x["booth"], "day": x["day"],
-                    "preNotes": research.package_note(c), "questions": c.get("questions", [])}
+                    "preNotes": research.package_note(c), "questions": list(dict.fromkeys([*trip.get("questions", []), *c.get("questions", [])]))}
             if c.get("core"):  # 핵심 키워드에 맞는 업체 — 폰에서 중요도 높음으로 보여 준다
                 item["core"] = True
             if len(st) > 1:  # 같은 업체의 다른 부스 — 폰에서 '중복 업체'로 알아볼 수 있게 한다
