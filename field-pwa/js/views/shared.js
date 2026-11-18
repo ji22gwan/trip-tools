@@ -163,31 +163,44 @@ export function openTranslate({ initialText = "", onInsert, micBusy } = {}) {
   $("#trGo").onclick = run;
 
   if (SR && !busy) {
+    // onend 가 안 오는 브라우저가 있어 종료·오류·시간 초과 어디서든 finish() 로 상태를 직접 되돌린다
+    let guardTimer = null;
+    const finish = () => {
+      clearTimeout(guardTimer);
+      const r = recognition;
+      recognition = null;
+      try { r?.abort(); } catch {}
+      const b = $("#trSpeak");
+      if (b) b.querySelector("span").textContent = "말해서 입력";
+    };
     $("#trSpeak").onclick = () => {
       if (recognition) {
-        recognition.stop();
+        finish();
         return;
       }
       const lang = LANGUAGES.find((l) => l.code === $("#trFrom").value)?.speech || "en-US";
-      recognition = new SR();
-      recognition.lang = lang;
-      recognition.interimResults = false;
-      recognition.onresult = (ev) => {
-        const t = [...ev.results].map((r) => r[0].transcript).join(" ");
+      const r = new SR();
+      recognition = r;
+      r.lang = lang;
+      r.interimResults = false;
+      r.onresult = (ev) => {
+        const t = [...ev.results].map((x) => x[0].transcript).join(" ");
+        finish();
         $("#trText").value = t;
         run();
       };
-      recognition.onerror = () => toast("음성 인식에 실패했어요. 직접 입력해 주세요.");
-      recognition.onend = () => {
-        recognition = null;
-        const b = $("#trSpeak");
-        if (b) b.querySelector("span").textContent = "말해서 입력";
+      r.onerror = (ev) => {
+        finish();
+        toast(ev?.error === "not-allowed" ? "마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요." : ev?.error === "language-not-supported" ? "이 언어는 음성 인식을 지원하지 않아요. 직접 입력해 주세요." : "음성 인식에 실패했어요. 직접 입력해 주세요.");
       };
+      r.onend = () => { if (recognition === r) finish(); };
       $("#trSpeak").querySelector("span").textContent = "듣는 중… (탭하면 종료)";
+      guardTimer = setTimeout(finish, 20000); // shortcut: 20초 넘게 안 끝나면 강제 종료, 긴 구술이 필요하면 늘릴 것
       try {
-        recognition.start();
+        r.start();
       } catch {
-        recognition = null;
+        finish();
+        toast("음성 인식을 시작하지 못했어요. 직접 입력해 주세요.");
       }
     };
   }

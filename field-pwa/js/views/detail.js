@@ -18,6 +18,10 @@ function setQLang(tripId, patch) {
   try { localStorage.setItem(qKey(tripId), JSON.stringify({ ...getQLang(tripId), ...patch })); } catch { /* 무시 */ }
 }
 const langLabel = (code) => LANGUAGES.find((l) => l.code === code)?.label || code;
+// 공통 질문은 업체마다 같은 글자라, 번역은 (글자, 언어) 기준으로 한 번만 하고 모든 업체에서 쓴다
+const TRC = "tf.qtr";
+const trCache = () => { try { return JSON.parse(localStorage.getItem(TRC)) || {}; } catch { return {}; } };
+const trSave = (text, code, out) => { try { const c = trCache(); c[code + "|" + text] = out; localStorage.setItem(TRC, JSON.stringify(c)); } catch { /* 무시 */ } };
 const qFailed = new Set(); // 번역에 실패한 (업체, 언어) — 자동 재시도로 무한 반복하지 않게
 
 export function activeRecordingCompanyId() {
@@ -85,6 +89,10 @@ export async function renderDetail(root, ctx, companyId) {
   const ql = getQLang(trip.id);
   const qMode = ql.mode, qLocal = ql.local;
   const qCode = qMode === "ko" ? "ko" : qMode === "en" ? "en" : qLocal;
+  if (qCode !== "ko") {
+    const tc = trCache();
+    for (const q of company.questions) { const v = !q.tr?.[qCode] && tc[qCode + "|" + q.text]; if (v) q.tr = { ...(q.tr || {}), [qCode]: v }; }
+  }
   const needTr = qCode !== "ko" ? company.questions.filter((q) => !q.tr?.[qCode]) : [];
   const failKey = `${company.id}:${qCode}`;
   let qNote = null;
@@ -205,6 +213,7 @@ export async function renderDetail(root, ctx, companyId) {
         try {
           const out = await translateText(q.text, "auto", qCode);
           q.tr = { ...(q.tr || {}), [qCode]: out };
+          trSave(q.text, qCode, out);
           okCount++;
         } catch { /* 아래에서 실패 처리 */ }
       }));
