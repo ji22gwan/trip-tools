@@ -218,7 +218,9 @@ details.gfold .ct { font-size: 12px; font-weight: 800; background: #e4e9ef; colo
 details.gfold + details.gfold { border-top: 1px solid var(--line-soft); }
 .mcard { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
 .mc-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.mc-name { font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mc-top .pill { white-space: normal; text-align: right; max-width: 55%; min-width: 0; border-radius: 12px; line-height: 1.3; }
+.mcard { min-width: 0; overflow-wrap: anywhere; }
+.mc-name { min-width: 0; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mc-fav { color: #c98a00; display: inline-flex; }
 .mc-rate { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rate { display: inline-flex; gap: 4px; font-size: 13px; font-weight: 800; color: #12386e; background: var(--blue-bg); border-radius: 8px; padding: 2px 8px; }
