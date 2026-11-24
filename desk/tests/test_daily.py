@@ -206,7 +206,7 @@ def test_day_report_groups_by_category_with_photo_table(store, zpath):
     assert "| Vision & Sensor | Alpha Robotics | 1 |" in md and "| **합계** |" in md
     assert "## 3. Vision & Sensor" in md and "### 3.1. Laser Profile" in md and "#### ■ Alpha Robotics" in md
     assert "| | | |\n| :---: | :---: | :---: |\n| ![Alpha Robotics 사진 1](photos/alpha_1030_01.jpg) |  |  |" in md  # 한 줄 3칸
-    assert "| Seam Finding | Alpha | 용접 전 검출 |" in md and "## 4. 주요 기술별 조사 결과" in md and "## 5. 종합 의견" in md
+    assert "| Seam Finding | Alpha | 용접 전 검출 |" in md and "## 5. 주요 기술별 조사 결과" in md and "## 6. 종합 의견" in md and "## 4. 기타" in md
 
 
 def test_day_markdown_zip_has_photos(store, zpath):
