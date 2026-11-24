@@ -2,8 +2,10 @@
 
 저장 위치: trips/<id>/days/day<N>/{visits.json, state.json, audio/, photos/}
 """
+import io
 import json
 import re
+import shutil
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -171,6 +173,63 @@ def file_path(store, tid, n, rel) -> Path:
     if not p.is_file():
         raise StoreError("파일을 찾을 수 없어요.")
     return p
+
+
+IMG_RE = re.compile(r"\.(jpe?g|png|gif|webp)$", re.I)
+MAX_FINAL = 2 * 1024**3
+
+
+def save_final_zip(store, tid, n, zip_path) -> dict:
+    """외부에서 고친 일간 보고서(.md + 사진 폴더) ZIP 을 그 일차의 '최종 보고서'로 저장한다. 이전 수정본은 대체된다."""
+    try:
+        zf = zipfile.ZipFile(zip_path)
+    except zipfile.BadZipFile as e:
+        raise StoreError("ZIP 파일이 아니에요. '보고서.md' 와 photos 폴더가 든 ZIP 을 올려 주세요.") from e
+    with zf:
+        infos = [i for i in zf.infolist() if not i.is_dir() and not any(p.startswith(".") or p == "__MACOSX" for p in i.filename.split("/"))]
+        mds = [i for i in infos if i.filename.lower().endswith(".md")]
+        if not mds:
+            raise StoreError("ZIP 안에 .md 보고서 파일이 없어요.")
+        if sum(i.file_size for i in infos) > MAX_FINAL:
+            raise StoreError("압축을 풀면 너무 커요(2GB 초과).")
+        md = next((i for i in mds if i.filename.split("/")[-1] == "보고서.md"), None) or min(mds, key=lambda i: i.filename.count("/"))
+        prefix = md.filename[: len(md.filename) - len(md.filename.split("/")[-1])]
+        d = day_dir(store, tid, n) / "final"
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True)
+        (d / "보고서.md").write_bytes(zf.read(md))
+        photos = 0
+        for i in infos:
+            parts = i.filename[len(prefix):].split("/") if i.filename.startswith(prefix) else []
+            if len(parts) != 2 or not SAFE_NAME.match(parts[0]) or not SAFE_NAME.match(parts[1]) or not IMG_RE.search(parts[1]):
+                continue
+            (d / parts[0]).mkdir(exist_ok=True)
+            with zf.open(i) as src, open(d / parts[0] / parts[1], "wb") as out:
+                shutil.copyfileobj(src, out)
+            photos += 1
+    st = get_state(store, tid, n)
+    st["finalReport"] = {"at": datetime.now().isoformat(timespec="seconds"), "photos": photos}
+    save_state(store, tid, n, st)
+    return st["finalReport"]
+
+
+def final_zip(store, tid, n) -> bytes | None:
+    d = day_dir(store, tid, n) / "final"
+    if not (d / "보고서.md").is_file():
+        return None
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
+        for p in sorted(d.rglob("*")):
+            if p.is_file():
+                z.write(p, p.relative_to(d).as_posix())
+    return buf.getvalue()
+
+
+def clear_final(store, tid, n) -> None:
+    shutil.rmtree(day_dir(store, tid, n) / "final", ignore_errors=True)
+    st = get_state(store, tid, n)
+    st.pop("finalReport", None)
+    save_state(store, tid, n, st)
 
 
 def check_marks(text: str) -> list[str]:

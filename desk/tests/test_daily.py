@@ -209,6 +209,28 @@ def test_day_report_groups_by_category_with_photo_table(store, zpath):
     assert "| Seam Finding | Alpha | 용접 전 검출 |" in md and "## 5. 주요 기술별 조사 결과" in md and "## 6. 종합 의견" in md and "## 4. 기타" in md
 
 
+def test_final_report_zip_upload(store, zpath, tmp_path):
+    import io, zipfile
+    t = prep(store, zpath)
+    zp = tmp_path / "edit.zip"
+    with zipfile.ZipFile(zp, "w") as z:
+        z.writestr("SPS_day1_FINAL/보고서.md", "# 내가 고친 보고서\n![a](photos/a.jpg)\n")
+        z.writestr("SPS_day1_FINAL/photos/a.jpg", JPG)
+        z.writestr("SPS_day1_FINAL/photos/../evil.jpg", JPG)
+        z.writestr("SPS_day1_FINAL/photos/readme.txt", b"x")
+        z.writestr("SPS_day1_FINAL/보고서.html", "<html>")
+    fr = daily.save_final_zip(store, t["id"], 1, zp)
+    assert fr["photos"] == 1  # 이미지만, 안전한 이름만
+    with zipfile.ZipFile(io.BytesIO(daily.final_zip(store, t["id"], 1))) as z:
+        assert sorted(z.namelist()) == ["photos/a.jpg", "보고서.md"] and "내가 고친" in z.read("보고서.md").decode()
+    assert reports.build_day(store, t["id"], 1)["finalReport"]["photos"] == 1
+    assert not (daily.day_dir(store, t["id"], 1) / "evil.jpg").exists()
+    daily.clear_final(store, t["id"], 1)
+    assert daily.final_zip(store, t["id"], 1) is None and not reports.build_day(store, t["id"], 1)["finalReport"]
+    with pytest.raises(StoreError):
+        daily.save_final_zip(store, t["id"], 1, io.BytesIO(b"not a zip"))
+
+
 def test_day_markdown_zip_has_photos(store, zpath):
     import io, zipfile
     t = prep(store, zpath)

@@ -160,11 +160,38 @@ export async function dailyView(root, tid, n, app) {
     h("div", {}, h("div", { class: "row", style: "justify-content:space-between" }, h("h4", {}, "내일 계획"), h("button", { class: "btn sm ghost", onclick: () => editBox("내일 계획 수정", rep.tomorrow, (v) => api("PUT", `/trips/${tid}/days/${n}/report`, { tomorrow: v })) }, "수정")), h("div", { style: "line-height:1.6" }, rep.tomorrow || h("span", { class: "sub" }, "배정된 다음 일정이 없어요."))),
     rep.checks.length ? h("div", { class: "msg warn" }, h("b", {}, `확인 필요 ${rep.checks.length}건`), h("ul", { style: "margin:4px 0 0;padding-left:18px" }, ...rep.checks.map((c) => h("li", {}, `${c.company}: ${c.text}`)))) : null,
     gapsBox(),
+    finalBox(),
     h("div", { class: "grow" }),
     h("div", { class: "row" },
       h("button", { class: "btn", style: "flex:1 1 auto", onclick: openAi }, "AI 교정·요약"),
       h("button", { class: "btn primary", style: "flex:1 1 auto", onclick: () => saveMenu() }, "Word 저장"),
       h("button", { class: "btn", onclick: () => download(`/trips/${tid}/days/${n}/report-md.zip`) }, "Markdown + 사진")));
+
+  // 외부에서 고친 보고서(.md + photos ZIP)를 올려 이 일차의 보고서로 저장한다. 저장하면 'Markdown + 사진' 내려받기는 이 수정본을 준다.
+  function finalBox() {
+    const fr = rep.finalReport;
+    const file = h("input", { type: "file", accept: ".zip", style: "display:none", onchange: () => { if (file.files[0]) send(file.files[0]); file.value = ""; } });
+    const send = (f) => {
+      toast("올리는 중…");
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `/api/trips/${tid}/days/${n}/final-report`);
+      xhr.setRequestHeader("X-TripDesk", "1");
+      xhr.onload = () => {
+        let j = {};
+        try { j = JSON.parse(xhr.responseText); } catch {}
+        if (xhr.status !== 200) return toast(j.error || "저장하지 못했어요.", true);
+        toast(`수정본을 저장했어요 (사진 ${j.finalReport.photos}장)`);
+        reload();
+      };
+      xhr.onerror = () => toast("올리지 못했어요. Trip Desk 가 켜져 있는지 확인해 주세요.", true);
+      xhr.send(f);
+    };
+    return h("div", { class: "field" }, h("h4", {}, "수정한 보고서 올리기"),
+      fr ? h("div", { class: "msg" }, `수정본 사용 중 · ${fr.at.replace("T", " ")} · 사진 ${fr.photos}장. 'Markdown + 사진' 은 이 수정본을 내려받아요.`)
+        : h("div", { class: "sub" }, "'Markdown + 사진' ZIP 을 밖에서 고쳤다면, 그 ZIP(보고서.md + photos 폴더)을 올려 이 일차의 보고서로 저장해요."),
+      h("div", { class: "row" }, file, h("button", { class: "btn", onclick: () => file.click() }, fr ? "다른 수정본 올리기" : "수정본 ZIP 올리기"),
+        fr ? h("button", { class: "btn ghost", onclick: () => guard(async () => { await api("DELETE", `/trips/${tid}/days/${n}/final-report`); toast("자동 생성 보고서로 되돌렸어요."); reload(); }) }, "자동 생성으로 되돌리기") : null));
+  }
 
   // 오늘 미흡했던 부분: 적어 두면 보고서에 들어가고, 패키지를 다시 보내면 폰 앱에서 볼 수 있어요
   function gapsBox() {

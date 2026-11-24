@@ -538,10 +538,22 @@ class Api:
         r = reports.build_day(self.store, m["tid"], int(m["n"]))
         return ("bytes", reports.day_markdown(r).encode("utf-8"), "text/markdown; charset=utf-8", f"{r['tripName']}_day{r['day']}_보고서.md")
 
+    @route("POST", r"/api/trips/(?P<tid>[^/]+)/days/(?P<n>\d+)/final-report")
+    def put_final_report(self, m, q, zip_path):
+        """외부에서 고친 보고서(.md + 사진) ZIP 을 이 일차의 보고서로 저장한다."""
+        fr = daily.save_final_zip(self.store, m["tid"], int(m["n"]), zip_path)
+        return {"finalReport": fr, "report": reports.build_day(self.store, m["tid"], int(m["n"]))}
+
+    @route("DELETE", r"/api/trips/(?P<tid>[^/]+)/days/(?P<n>\d+)/final-report")
+    def del_final_report(self, m, q, body):
+        daily.clear_final(self.store, m["tid"], int(m["n"]))
+        return {"report": reports.build_day(self.store, m["tid"], int(m["n"]))}
+
     @route("GET", r"/api/trips/(?P<tid>[^/]+)/days/(?P<n>\d+)/report-md\.zip")
     def day_md_zip(self, m, q, body):
         r = reports.build_day(self.store, m["tid"], int(m["n"]))
-        return ("bytes", reports.day_md_zip(self.store, m["tid"], r), "application/zip", f"{r['tripName']}_day{r['day']}_보고서_Markdown.zip")
+        mine = daily.final_zip(self.store, m["tid"], int(m["n"]))  # 올려 둔 수정본이 있으면 그것을 준다
+        return ("bytes", mine if mine is not None else reports.day_md_zip(self.store, m["tid"], r), "application/zip", f"{r['tripName']}_day{r['day']}_보고서_Markdown.zip")
 
     @route("GET", r"/api/trips/(?P<tid>[^/]+)/days/(?P<n>\d+)/report\.docx")
     def day_docx(self, m, q, body):
@@ -695,7 +707,7 @@ def make_handler(api: Api, port_getter, auth=None, allowed_hosts=()):
             if method == "GET" and not u.path.startswith("/api/"):
                 return self._static(u.path)
             n = int(self.headers.get("Content-Length") or 0)
-            streamed = method == "POST" and re.search(r"/days/import$", u.path)
+            streamed = method == "POST" and re.search(r"/days/(import|\d+/final-report)$", u.path)
             if n > (MAX_IMPORT if streamed else MAX_BODY):
                 return self._json(413, {"error": "파일이 너무 커요."})
             tmp = None

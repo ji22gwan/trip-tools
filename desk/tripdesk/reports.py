@@ -75,7 +75,7 @@ def build_day(store: Store, tid: str, n: int) -> dict:
         "companies": comps_out, "checks": checks,
         "tomorrow": st["tomorrow"] if st.get("tomorrow") is not None else " · ".join(bits),
         "tomorrowIsAuto": st.get("tomorrow") is None,
-        "gaps": st.get("gaps", ""),
+        "gaps": st.get("gaps", ""), "finalReport": st.get("finalReport"),
         "findings": st.get("findings", []), "tech": st.get("tech", []), "opinion": st.get("opinion", []),
     }
 
