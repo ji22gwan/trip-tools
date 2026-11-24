@@ -190,6 +190,25 @@ def test_report_without_ai_falls_back_to_transcript(store, zpath):
     assert "전사 원문" in md and "이십 킬로" in md  # AI 정리가 없으면 원문을 그대로 보여 준다(지어내지 않는다)
 
 
+def test_day_report_groups_by_category_with_photo_table(store, zpath):
+    import io, zipfile
+    t = prep(store, zpath)
+    rep = dict(REPLY, companies=[{"id": "c-a", "category": "Vision & Sensor", "group": "Laser Profile", "points": ["페이로드 약 20kg."]}],
+               findings=["용접선 검출 센서 조사."], tech=[{"tech": "Seam Finding", "companies": ["Alpha"], "review": "용접 전 검출"}],
+               opinion=[{"category": "Vision & Sensor", "bullets": ["센서 비교 필요."]}])
+    visits, st = daily.get_visits(store, t["id"], 1), daily.get_state(store, t["id"], 1)
+    dayai.apply_reply("```json\n" + json.dumps(rep, ensure_ascii=False) + "\n```", visits, st)
+    daily.save_state(store, t["id"], 1, st)
+    r = reports.build_day(store, t["id"], 1)
+    with zipfile.ZipFile(io.BytesIO(reports.day_md_zip(store, t["id"], r))) as z:
+        md = z.read("보고서.md").decode("utf-8")
+    assert "## 1. 주요 조사 내용\n\n- 용접선 검출 센서 조사." in md
+    assert "| Vision & Sensor | Alpha Robotics | 1 |" in md and "| **합계** |" in md
+    assert "## 3. Vision & Sensor" in md and "### 3.1. Laser Profile" in md and "#### ■ Alpha Robotics" in md
+    assert "| | | |\n| :---: | :---: | :---: |\n| ![Alpha Robotics 사진 1](photos/alpha_1030_01.jpg) |  |  |" in md  # 한 줄 3칸
+    assert "| Seam Finding | Alpha | 용접 전 검출 |" in md and "## 4. 주요 기술별 조사 결과" in md and "## 5. 종합 의견" in md
+
+
 def test_day_markdown_zip_has_photos(store, zpath):
     import io, zipfile
     t = prep(store, zpath)

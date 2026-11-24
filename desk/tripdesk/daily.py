@@ -41,6 +41,10 @@ def get_state(store, tid, n) -> dict:
     st.setdefault("summary", "")
     st.setdefault("points", {})
     st.setdefault("tomorrow", None)
+    st.setdefault("groups", {})  # 업체 id → {"category","group"}: AI 가 내용으로 판단한 분류
+    st.setdefault("findings", [])  # 주요 조사 내용
+    st.setdefault("tech", [])  # 기술별 조사 결과 표 행
+    st.setdefault("opinion", [])  # 분류별 종합 의견
     st.setdefault("gaps", "")  # 오늘 미흡했던 부분(직접 적는 메모). 패키지로 폰 앱에 보낸다
     return st
 

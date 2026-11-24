@@ -47,8 +47,9 @@ def build_day(store: Store, tid: str, n: int) -> dict:
         points = st["points"].get(c["id"], [])
         for p in points:
             checks += [{"company": c["name"], "text": f} for f in daily.check_marks(p)]
+        g = st.get("groups", {}).get(c["id"], {})  # AI 가 내용으로 정한 분류가 있으면 그것을 쓴다
         comps_out.append({
-            "id": c["id"], "name": c["name"], "category": c.get("category", ""), "hall": c.get("hall", ""), "booth": c.get("booth", ""),
+            "id": c["id"], "name": c["name"], "category": g.get("category") or c.get("category", ""), "group": g.get("group", ""), "hall": c.get("hall", ""), "booth": c.get("booth", ""),
             "addedOnSite": bool(c.get("addedOnSite")), "visited": bool(c.get("visited")), "visitedAt": c.get("visitedAt"),
             "points": points, "recordings": recs, "photos": c.get("photos", []),
             "memos": [{**m, "time": local_hm(m.get("at", ""), off)} for m in c.get("memos", [])],
@@ -75,6 +76,7 @@ def build_day(store: Store, tid: str, n: int) -> dict:
         "tomorrow": st["tomorrow"] if st.get("tomorrow") is not None else " · ".join(bits),
         "tomorrowIsAuto": st.get("tomorrow") is None,
         "gaps": st.get("gaps", ""),
+        "findings": st.get("findings", []), "tech": st.get("tech", []), "opinion": st.get("opinion", []),
     }
 
 
@@ -170,24 +172,68 @@ def _hm(x) -> str:
 
 
 # ---------------- Markdown ----------------
+def _photo_table(name: str, photos: list[str], count: int) -> list[str]:
+    """사진을 한 줄에 3개씩 표로 넣는다(원본은 그대로, 보기 크기는 뷰어가 칸 폭에 맞춘다)."""
+    L = ["", f"**현장 사진 ({count}장)**" if count else "**현장 사진**", ""]
+    if not photos:
+        return L + ["<!-- 사진 삽입 -->" if not count else f"사진 {count}장", ""]
+    L += ["| | | |", "| :---: | :---: | :---: |"]
+    cells = [f"![{name} 사진 {i}]({p})" for i, p in enumerate(photos, 1)]
+    for k in range(0, len(cells), 3):
+        row = cells[k:k + 3] + [""] * (3 - len(cells[k:k + 3]))
+        L.append("| " + " | ".join(row) + " |")
+    return L + [""]
+
+
 def day_markdown(r: dict, photos: dict | None = None) -> str:  # photos: 업체 id → ZIP 안 사진 경로 목록(없으면 장수만 적는다)
-    L = [f"# {r['tripName']} · {r['day']}일차 보고서", f"{r['date']} · {r['venue']}".strip(" ·"), "", "## 오늘 요약", r["summary"], ""]
-    for c in r["companies"]:
-        tag = " (현장 추가)" if c["addedOnSite"] else ""
-        L.append(f"## {c['name']}{tag} · {c['category']}" + (f" · {c['hall']} {c['booth']}".rstrip() if c["hall"] or c["booth"] else ""))
-        if c["points"]:
-            L += [f"- {p}" for p in c["points"]]
-        else:
-            for rec in c["recordings"]:
-                t = plain(rec["corrected"] or rec["text"])
-                if t:
-                    L.append(f"- ({_hm(rec)} 녹음, {'교정본' if rec['corrected'] else '전사 원문'}) {t}")
-        if c["memos"]:
-            L += ["", "**내 메모 (원문)**"] + [f"> {'★ ' if m.get('important') else ''}{m['text']}" for m in c["memos"]]
-        if c["photos"]:
-            L.append(f"\n사진 {len(c['photos'])}장")
-            L += ["", *[f"![{c['name']} 사진 {i}]({p})" for i, p in enumerate((photos or {}).get(c["id"], []), 1)]]
-        L.append("")
+    """일간 보고서: 주요 조사 내용 → 업체 현황 → 분류별 업체(개조식 + 사진 3열) → 기술별 결과 → 종합 의견."""
+    comps = r["companies"]
+    cats: dict[str, list[dict]] = {}
+    for c in comps:
+        cats.setdefault(c.get("category") or "기타", []).append(c)
+    L = [f"# {r['tripName']} · {r['day']}일차 보고서", "", f"- 일자: {r['date']}", *([f"- 장소: {r['venue']}"] if r["venue"] else []), f"- 방문 업체: {len(comps)}개사", ""]
+    L += ["## 1. 주요 조사 내용", ""]
+    L += [f"- {x}" for x in r.get("findings", [])] if r.get("findings") else [r["summary"]]
+    L += ["", "## 2. 방문 업체 현황", "", "| 구분 | 주요 업체 | 업체 수 |", "|---|---|---:|"]
+    L += [f"| {k} | {', '.join(c['name'] for c in v)} | {len(v)} |" for k, v in cats.items()]
+    L += [f"| **합계** | | **{len(comps)}** |", ""]
+    n = 2
+    for cat, items in cats.items():
+        n += 1
+        L += [f"## {n}. {cat}", ""]
+        sub, k = "", 0
+        grouped = any(c.get("group") for c in items)
+        for c in sorted(items, key=lambda c: c.get("group") or "") if grouped else items:
+            if grouped and (c.get("group") or "") != sub:
+                sub = c.get("group") or ""
+                if sub:
+                    k += 1
+                    L += [f"### {n}.{k}. {sub}", ""]
+            tag = " (현장 추가)" if c["addedOnSite"] else ""
+            pos = f" · {c['hall']} {c['booth']}".rstrip() if c["hall"] or c["booth"] else ""
+            L += [f"{'####' if sub else '###'} ■ {c['name']}{tag}{pos}", ""]
+            if c["points"]:
+                L += [f"- {p}" for p in c["points"]]
+            else:
+                for rec in c["recordings"]:
+                    t = plain(rec["corrected"] or rec["text"])
+                    if t:
+                        L.append(f"- ({_hm(rec)} 녹음, {'교정본' if rec['corrected'] else '전사 원문'}) {t}")
+            if c["memos"]:
+                L += ["", "**내 메모 (원문)**", ""] + [f"> {'★ ' if m.get('important') else ''}{m['text']}" for m in c["memos"]]
+            if c["photos"]:
+                L += _photo_table(c["name"], (photos or {}).get(c["id"], []), len(c["photos"]))
+            else:
+                L.append("")
+    if r.get("tech"):
+        n += 1
+        L += [f"## {n}. 주요 기술별 조사 결과", "", "| 조사 기술 | 관련 업체 | 주요 검토 사항 |", "|---|---|---|"]
+        L += [f"| {t['tech']} | {', '.join(t['companies'])} | {t['review']} |" for t in r["tech"]] + [""]
+    if r.get("opinion"):
+        n += 1
+        L += [f"## {n}. 종합 의견", ""]
+        for k, o in enumerate(r["opinion"], 1):
+            L += [f"### {n}.{k}. {o['category']}", "", *[f"- {b}" for b in o["bullets"]], ""]
     if r["tomorrow"]:
         L += ["## 내일 계획", r["tomorrow"], ""]
     if r.get("gaps"):
