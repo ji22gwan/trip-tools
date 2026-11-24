@@ -182,6 +182,11 @@ def test_report_without_ai_falls_back_to_transcript(store, zpath):
     r = reports.build_day(store, t["id"], 1)
     assert not r["summaryIsAi"] and "2곳 방문(현장 추가 1곳)" in r["summary"]
     md = reports.day_markdown(r)
+    assert "오늘 미흡한 부분" not in md
+    st = daily.get_state(store, t["id"], 1)
+    st["gaps"] = "A사 가격 확인 못 함"
+    daily.save_state(store, t["id"], 1, st)
+    assert "## 오늘 미흡한 부분\nA사 가격 확인 못 함" in reports.day_markdown(reports.build_day(store, t["id"], 1))
     assert "전사 원문" in md and "이십 킬로" in md  # AI 정리가 없으면 원문을 그대로 보여 준다(지어내지 않는다)
 
 

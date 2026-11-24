@@ -61,6 +61,7 @@ export async function renderList(root, ctx) {
       </div>
     </div>
     <div class="scroll">
+      ${(trip.gaps || []).length ? `<details class="card" style="margin-bottom:8px"><summary style="font-weight:800">미흡한 부분 · ${trip.gaps.length}일</summary>${trip.gaps.map((g) => `<div style="margin-top:8px"><b>${g.day ? `Day ${g.day}` : ""}</b><div style="white-space:pre-wrap;line-height:1.6">${esc(g.text)}</div></div>`).join("")}</details>` : ""}
       <input id="coSearch" class="input" type="search" placeholder="업체명 검색" aria-label="업체명 검색" autocomplete="off" value="${esc(query)}" style="margin-bottom:8px">
       <div id="coBody"></div>
     </div>`;

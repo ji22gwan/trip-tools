@@ -151,6 +151,7 @@ export async function importTripPackage(file, onStage = () => {}) {
     sessions: cleanSessions(tripIn.sessions).map((x) => ({ ...x, going: !!existingTrip?.sessions?.find((o) => o.id === x.id)?.going })), // 다시 받아도 '참석' 표시는 유지
     bookings: { flights: Array.isArray(tripIn.bookings?.flights) ? tripIn.bookings.flights : [], hotels: Array.isArray(tripIn.bookings?.hotels) ? tripIn.bookings.hotels : [] },
     local: cleanLocal(tripIn.local),
+    gaps: (Array.isArray(tripIn.gaps) ? tripIn.gaps : []).filter((g) => g && g.text).map((g) => ({ day: Number(g.day) || null, text: String(g.text).slice(0, 2000) })),
     createdAt: existingTrip?.createdAt || Date.now(),
   };
   await db.put("trips", trip);

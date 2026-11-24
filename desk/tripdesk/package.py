@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 from . import SCHEMA_VERSION, research, sessions as sess
-from . import booths, local, travel
+from . import booths, daily, local, travel
 from .store import Store, StoreError, hall_key
 
 
@@ -82,6 +82,7 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "local": _local(store, trip_id),
         "sessions": [{k: x.get(k, "") for k in ("id", "title", "date", "start", "end", "place", "hall", "speaker", "topic")}
                      for x in store.get_sessions(trip_id)],  # 세션은 전부 폰으로 보내고, 갈지 말지는 폰에서 고른다
+        "gaps": [{"day": n, "date": d, "text": t} for n, d in enumerate(trip["days"], 1) if (t := daily.get_state(store, trip_id, n).get("gaps"))],  # 일간 보고서에 적은 '미흡한 부분'
         "hallPins": trip.get("hallPins", {}),  # 홀 → 지도 위 위치. 폰 지도에 일자별로 표시한다
     }
     companies = []

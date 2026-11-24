@@ -159,11 +159,21 @@ export async function dailyView(root, tid, n, app) {
       c.photos.length ? h("div", { class: "photos", style: "margin-top:6px" }, ...c.photos.slice(0, 8).map((p) => h("img", { loading: "lazy", alt: "", src: base + p.file.split("/").map(encodeURIComponent).join("/") })), c.photos.length > 8 ? h("span", { class: "sub" }, `+${c.photos.length - 8}`) : null) : null)),
     h("div", {}, h("div", { class: "row", style: "justify-content:space-between" }, h("h4", {}, "내일 계획"), h("button", { class: "btn sm ghost", onclick: () => editBox("내일 계획 수정", rep.tomorrow, (v) => api("PUT", `/trips/${tid}/days/${n}/report`, { tomorrow: v })) }, "수정")), h("div", { style: "line-height:1.6" }, rep.tomorrow || h("span", { class: "sub" }, "배정된 다음 일정이 없어요."))),
     rep.checks.length ? h("div", { class: "msg warn" }, h("b", {}, `확인 필요 ${rep.checks.length}건`), h("ul", { style: "margin:4px 0 0;padding-left:18px" }, ...rep.checks.map((c) => h("li", {}, `${c.company}: ${c.text}`)))) : null,
+    gapsBox(),
     h("div", { class: "grow" }),
     h("div", { class: "row" },
       h("button", { class: "btn", style: "flex:1 1 auto", onclick: openAi }, "AI 교정·요약"),
       h("button", { class: "btn primary", style: "flex:1 1 auto", onclick: () => saveMenu() }, "Word 저장"),
       h("button", { class: "btn", onclick: () => download(`/trips/${tid}/days/${n}/report-md.zip`) }, "Markdown + 사진")));
+
+  // 오늘 미흡했던 부분: 적어 두면 보고서에 들어가고, 패키지를 다시 보내면 폰 앱에서 볼 수 있어요
+  function gapsBox() {
+    const ta = h("textarea", { value: rep.gaps || "", rows: 3, placeholder: "예) A사 가격 확인 못 함 · 내일 B사 부스 재방문 · 사진을 더 찍어야 함", style: "width:100%" });
+    return h("div", { class: "field" }, h("h4", {}, "오늘 미흡한 부분"), ta,
+      h("div", { class: "row", style: "justify-content:space-between;align-items:center" },
+        h("span", { class: "sub" }, "저장한 뒤 사전조사에서 패키지를 다시 보내면 폰 앱에 메모로 보여요."),
+        h("button", { class: "btn sm", onclick: () => guard(async () => { await api("PUT", `/trips/${tid}/days/${n}/report`, { gaps: ta.value }); rep.gaps = ta.value.trim(); toast("저장했어요."); }) }, "저장")));
+  }
 
   function saveMenu() { download(`/trips/${tid}/days/${n}/report.docx`); }
   function openAi() {

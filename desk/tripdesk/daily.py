@@ -41,6 +41,7 @@ def get_state(store, tid, n) -> dict:
     st.setdefault("summary", "")
     st.setdefault("points", {})
     st.setdefault("tomorrow", None)
+    st.setdefault("gaps", "")  # 오늘 미흡했던 부분(직접 적는 메모). 패키지로 폰 앱에 보낸다
     return st
 
 

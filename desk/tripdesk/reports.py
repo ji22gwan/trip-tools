@@ -74,6 +74,7 @@ def build_day(store: Store, tid: str, n: int) -> dict:
         "companies": comps_out, "checks": checks,
         "tomorrow": st["tomorrow"] if st.get("tomorrow") is not None else " · ".join(bits),
         "tomorrowIsAuto": st.get("tomorrow") is None,
+        "gaps": st.get("gaps", ""),
     }
 
 
@@ -189,6 +190,8 @@ def day_markdown(r: dict, photos: dict | None = None) -> str:  # photos: 업체 
         L.append("")
     if r["tomorrow"]:
         L += ["## 내일 계획", r["tomorrow"], ""]
+    if r.get("gaps"):
+        L += ["## 오늘 미흡한 부분", r["gaps"], ""]
     if r["checks"]:
         L += ["## 확인 필요", *[f"- {x['company']}: {x['text']}" for x in r["checks"]], ""]
     return "\n".join(L)
@@ -337,6 +340,9 @@ def day_docx(store: Store, tid: str, r: dict, with_photos: bool = True) -> bytes
     if r["tomorrow"]:
         d.add_heading("내일 계획", 1)
         d.add_paragraph(r["tomorrow"])
+    if r.get("gaps"):
+        d.add_heading("오늘 미흡한 부분", 1)
+        d.add_paragraph(r["gaps"])
     if r["checks"]:
         d.add_heading("확인 필요", 1)
         for x in r["checks"]:

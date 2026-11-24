@@ -512,6 +512,8 @@ class Api:
             st["tomorrow"] = d["tomorrow"].strip()
         elif d.get("tomorrow") is None and "tomorrow" in d:
             st["tomorrow"] = None  # 자동 문장으로 되돌리기
+        if isinstance(d.get("gaps"), str):
+            st["gaps"] = d["gaps"].strip()[:2000]
         for cid, pts in (d.get("points") or {}).items():
             st["points"][cid] = [str(p).strip() for p in pts if str(p).strip()]
         daily.save_state(self.store, tid, n, st)
