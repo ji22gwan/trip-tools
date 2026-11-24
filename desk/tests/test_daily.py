@@ -231,6 +231,28 @@ def test_final_report_zip_upload(store, zpath, tmp_path):
         daily.save_final_zip(store, t["id"], 1, io.BytesIO(b"not a zip"))
 
 
+def test_final_report_uses_uploaded_edit(store, zpath, tmp_path):
+    t = prep(store, zpath)
+    before = reports.build_final(store, t["id"])["days"][0]
+    assert not before.get("editedUsed")
+    zp = tmp_path / "edit.zip"
+    md = ("# 보고서\n\n## 1. 주요 조사 내용\n\n- 내가 고친 조사 내용.\n- 둘째 줄.\n\n## 2. 방문 업체 현황\n\n| a | b |\n|---|---|\n| x | y |\n\n"
+          "## 3. Vision\n\n### 3.1. 그룹\n\n#### ■ Alpha Robotics · 3A 1\n\n- 내가 고친 개조식 하나.\n- 둘.\n\n**현장 사진 (1장)**\n\n| | |\n\n"
+          "## 4. 종합 의견\n\n### 4.1. Vision\n\n- 무시될 종합 줄.\n")
+    with zipfile.ZipFile(zp, "w") as z:
+        z.writestr("보고서.md", md)
+    daily.save_final_zip(store, t["id"], 1, zp)
+    r = reports.build_final(store, t["id"])
+    d = r["days"][0]
+    assert d["editedUsed"] and d["summary"] == "내가 고친 조사 내용. 둘째 줄."
+    alpha = next(c for c in d["companies"] if c["name"] == "Alpha Robotics")
+    assert alpha["points"] == ["내가 고친 개조식 하나.", "둘."]
+    assert [v["points"] for c in r["companies"] if c["name"] == "Alpha Robotics" for v in c["visits"]] == [["내가 고친 개조식 하나.", "둘."]]
+    assert "내가 고친 개조식 하나." in reports.final_markdown(r) and "무시될 종합 줄" not in reports.final_markdown(r)
+    # 수정본이 없는 업체는 AI 정리 그대로
+    assert next(c for c in d["companies"] if c["name"] != "Alpha Robotics")["points"] == next(c for c in before["companies"] if c["name"] != "Alpha Robotics")["points"]
+
+
 def test_day_markdown_zip_has_photos(store, zpath):
     import io, zipfile
     t = prep(store, zpath)

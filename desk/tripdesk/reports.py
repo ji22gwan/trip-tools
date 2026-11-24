@@ -91,12 +91,43 @@ def _attended(days: list[dict]) -> list[dict]:
     return sorted(out, key=lambda x: (x.get("date", ""), x.get("start") or "99:99"))
 
 
+def _apply_edited(store: Store, tid: str, d: dict) -> None:
+    """일간 보고서에 올려 둔 수정본이 있으면, 최종 보고서는 그 내용(주요 조사 내용·업체별 개조식)을 기준으로 한다."""
+    from .research import norm_name
+
+    p = daily.day_dir(store, tid, d["day"]) / "final" / "보고서.md"
+    if not p.is_file():
+        return
+    sec, name, found, pts = "", None, [], {}
+    for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+        s = line.strip()
+        if s.startswith("#"):
+            sec = s
+            m = re.match(r"^#{3,4}\s*■\s*(.+)$", s)
+            name = re.split(r"\s+·\s+|\s*\(현장 추가\)", m.group(1))[0].strip() if m else None
+        elif s.startswith("- "):
+            if name:
+                pts.setdefault(norm_name(name), []).append(s[2:].strip())
+            elif re.match(r"^##\s*\d*\.?\s*주요 조사 내용", sec):
+                found.append(s[2:].strip())
+    if found:
+        d["summary"], d["summaryIsAi"] = " ".join(found), True
+    for c in d["companies"]:
+        k = norm_name(c["name"])
+        hit = pts.get(k) or next((v for kk, v in pts.items() if len(k) >= 3 and len(kk) >= 3 and (k in kk or kk in k)), None)
+        if hit:
+            c["points"] = hit
+    d["editedUsed"] = True
+
+
 def build_final(store: Store, tid: str) -> dict:
     trip = store.get_trip(tid)
     days = []
     for i in range(1, len(trip["days"]) + 1):
         if daily.get_visits(store, tid, i):
-            days.append(build_day(store, tid, i))
+            d = build_day(store, tid, i)
+            _apply_edited(store, tid, d)
+            days.append(d)
     merged: dict[str, dict] = {}
     for d in days:
         for c in d["companies"]:
