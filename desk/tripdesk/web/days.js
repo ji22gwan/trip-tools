@@ -158,7 +158,6 @@ export async function dailyView(root, tid, n, app) {
       c.memos.length ? h("div", { style: "margin-top:6px" }, h("div", { class: "sub", style: "font-weight:800" }, "내 메모 · 원문 그대로"), ...c.memos.map((m) => h("div", { class: "box memo", style: "margin-top:4px" }, (m.important ? "★ " : "") + m.text))) : null,
       c.photos.length ? h("div", { class: "photos", style: "margin-top:6px" }, ...c.photos.slice(0, 8).map((p) => h("img", { loading: "lazy", alt: "", src: base + p.file.split("/").map(encodeURIComponent).join("/") })), c.photos.length > 8 ? h("span", { class: "sub" }, `+${c.photos.length - 8}`) : null) : null)),
     h("div", {}, h("div", { class: "row", style: "justify-content:space-between" }, h("h4", {}, "내일 계획"), h("button", { class: "btn sm ghost", onclick: () => editBox("내일 계획 수정", rep.tomorrow, (v) => api("PUT", `/trips/${tid}/days/${n}/report`, { tomorrow: v })) }, "수정")), h("div", { style: "line-height:1.6" }, rep.tomorrow || h("span", { class: "sub" }, "배정된 다음 일정이 없어요."))),
-    rep.checks.length ? h("div", { class: "msg warn" }, h("b", {}, `확인 필요 ${rep.checks.length}건`), h("ul", { style: "margin:4px 0 0;padding-left:18px" }, ...rep.checks.map((c) => h("li", {}, `${c.company}: ${c.text}`)))) : null,
     gapsBox(),
     finalBox(),
     h("div", { class: "grow" }),
@@ -318,5 +317,5 @@ export async function finalView(root, tid, app) {
       h("h4", { style: "color:var(--ink);font-size:14px" }, c.name, h("span", { class: "sub" }, ` · ${c.category || "기타"}`), c.addedOnSite ? h("span", { class: "tag" }, "현장 추가") : null),
       ...c.visits.map((v) => h("div", {}, h("div", { class: "sub", style: "font-weight:800" }, `${v.day}일차`), list(v.points), ...v.memos.map((m) => h("div", { class: "box memo", style: "margin-top:4px" }, "메모: " + m.text))))))),
     r.notVisited.length ? sec("방문하지 못한 계획 업체", h("div", {}, r.notVisited.join(", "))) : null,
-    r.checks.length ? h("div", { class: "msg warn" }, h("b", {}, `확인 필요 ${r.checks.length}건`), h("ul", { style: "margin:4px 0 0;padding-left:18px" }, ...r.checks.map((c) => h("li", {}, `${c.day}일차 ${c.company}: ${c.text}`)))) : null);
+  );
 }
