@@ -185,6 +185,16 @@ def test_report_without_ai_falls_back_to_transcript(store, zpath):
     assert "전사 원문" in md and "이십 킬로" in md  # AI 정리가 없으면 원문을 그대로 보여 준다(지어내지 않는다)
 
 
+def test_day_markdown_zip_has_photos(store, zpath):
+    import io, zipfile
+    t = prep(store, zpath)
+    r = reports.build_day(store, t["id"], 1)
+    with zipfile.ZipFile(io.BytesIO(reports.day_md_zip(store, t["id"], r))) as z:
+        names = z.namelist()
+        md = z.read("보고서.md").decode("utf-8")
+    assert "photos/alpha_1030_01.jpg" in names and "![Alpha Robotics 사진 1](photos/alpha_1030_01.jpg)" in md
+
+
 def test_docx_and_final(store, zpath):
     docx = pytest.importorskip("docx")
     t = prep(store, zpath)

@@ -169,7 +169,7 @@ def _hm(x) -> str:
 
 
 # ---------------- Markdown ----------------
-def day_markdown(r: dict) -> str:
+def day_markdown(r: dict, photos: dict | None = None) -> str:  # photos: 업체 id → ZIP 안 사진 경로 목록(없으면 장수만 적는다)
     L = [f"# {r['tripName']} · {r['day']}일차 보고서", f"{r['date']} · {r['venue']}".strip(" ·"), "", "## 오늘 요약", r["summary"], ""]
     for c in r["companies"]:
         tag = " (현장 추가)" if c["addedOnSite"] else ""
@@ -185,12 +185,33 @@ def day_markdown(r: dict) -> str:
             L += ["", "**내 메모 (원문)**"] + [f"> {'★ ' if m.get('important') else ''}{m['text']}" for m in c["memos"]]
         if c["photos"]:
             L.append(f"\n사진 {len(c['photos'])}장")
+            L += ["", *[f"![{c['name']} 사진 {i}]({p})" for i, p in enumerate((photos or {}).get(c["id"], []), 1)]]
         L.append("")
     if r["tomorrow"]:
         L += ["## 내일 계획", r["tomorrow"], ""]
     if r["checks"]:
         L += ["## 확인 필요", *[f"- {x['company']}: {x['text']}" for x in r["checks"]], ""]
     return "\n".join(L)
+
+
+def day_md_zip(store: Store, tid: str, r: dict) -> bytes:
+    """Markdown 과 사진을 ZIP 으로 묶는다. 사진은 photos/ 에 넣고 본문에 상대 경로로 연결한다."""
+    import zipfile
+    ddir = daily.day_dir(store, tid, r["day"])
+    photos: dict[str, list[str]] = {}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
+        for c in r["companies"]:
+            for ph in c["photos"]:
+                rel = str(ph.get("file", ""))
+                src = ddir / rel
+                if ".." in rel or not src.is_file():
+                    continue
+                arc = f"photos/{src.name}"
+                z.write(src, arc)
+                photos.setdefault(c["id"], []).append(arc)
+        z.writestr("보고서.md", day_markdown(r, photos).encode("utf-8"))
+    return buf.getvalue()
 
 
 def session_lines(r: dict) -> list[str]:

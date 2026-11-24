@@ -536,6 +536,11 @@ class Api:
         r = reports.build_day(self.store, m["tid"], int(m["n"]))
         return ("bytes", reports.day_markdown(r).encode("utf-8"), "text/markdown; charset=utf-8", f"{r['tripName']}_day{r['day']}_보고서.md")
 
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/days/(?P<n>\d+)/report-md\.zip")
+    def day_md_zip(self, m, q, body):
+        r = reports.build_day(self.store, m["tid"], int(m["n"]))
+        return ("bytes", reports.day_md_zip(self.store, m["tid"], r), "application/zip", f"{r['tripName']}_day{r['day']}_보고서_Markdown.zip")
+
     @route("GET", r"/api/trips/(?P<tid>[^/]+)/days/(?P<n>\d+)/report\.docx")
     def day_docx(self, m, q, body):
         r = reports.build_day(self.store, m["tid"], int(m["n"]))

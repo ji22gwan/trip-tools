@@ -163,7 +163,7 @@ export async function dailyView(root, tid, n, app) {
     h("div", { class: "row" },
       h("button", { class: "btn", style: "flex:1 1 auto", onclick: openAi }, "AI 교정·요약"),
       h("button", { class: "btn primary", style: "flex:1 1 auto", onclick: () => saveMenu() }, "Word 저장"),
-      h("button", { class: "btn", onclick: () => download(`/trips/${tid}/days/${n}/report.md`) }, "Markdown")));
+      h("button", { class: "btn", onclick: () => download(`/trips/${tid}/days/${n}/report-md.zip`) }, "Markdown + 사진")));
 
   function saveMenu() { download(`/trips/${tid}/days/${n}/report.docx`); }
   function openAi() {
