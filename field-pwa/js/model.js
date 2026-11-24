@@ -129,6 +129,13 @@ export async function addCompany(trip, { name, category, hall, booth, day }) {
   return c;
 }
 
+// 업체와 그 업체의 녹음(조각 포함)·메모·사진을 모두 지운다
+export async function deleteCompany(id) {
+  for (const r of await db.getAllByIndex("recordings", "companyId", id)) await db.delAllByIndex("chunks", "recId", r.id);
+  for (const name of ["recordings", "memos", "photos"]) await db.delAllByIndex(name, "companyId", id);
+  await db.del("companies", id);
+}
+
 export function isVisited(company, day) {
   return (company.visits || []).some((v) => v.day === day);
 }

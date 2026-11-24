@@ -6,6 +6,7 @@ import { headerHtml, bindHeader, openAddCompany, openSession, dupBadge } from ".
 
 let filter = "today";
 let sessOpen = false;
+let query = ""; // 업체명 검색어. 있으면 오늘/전체 구분 없이 전체 업체에서 찾는다
 
 export async function renderList(root, ctx) {
   const { trip, day, companies } = ctx;
@@ -15,7 +16,6 @@ export async function renderList(root, ctx) {
   const onsite = shown.filter((c) => c.addedOnSite).length;
   const pct = planned.length ? Math.round((done / planned.length) * 100) : 0;
 
-  const groups = groupByCategory(shown);
   const rowHtml = (c) => {
     const visited = isVisited(c, day);
     const place = [c.hall && `홀 ${c.hall}`, c.booth && `부스 ${c.booth}`].filter(Boolean).join(" · ");
@@ -61,14 +61,8 @@ export async function renderList(root, ctx) {
       </div>
     </div>
     <div class="scroll">
-      ${nextHtml}
-      ${sessHtml}
-      ${
-        groups.length
-          ? groups.map((g) => `<div class="group-title">${esc(g.title)} · ${g.items.length}곳</div><div class="list-card ${g.title === "현장 추가" ? "dashed" : ""}">${g.items.map(rowHtml).join("")}</div>`).join("")
-          : `<div class="card" style="margin-top:12px;text-align:center;color:var(--sub)">${filter === "today" ? "오늘 방문할 업체가 없어요. 전체 보기에서 확인하거나 업체를 추가해 보세요." : "아직 업체가 없어요."}</div>`
-      }
-      <button class="btn btn-block" id="addBtn" style="margin-top:16px">${icons.plus(18)}업체 추가</button>
+      <input id="coSearch" class="input" type="search" placeholder="업체명 검색" aria-label="업체명 검색" autocomplete="off" value="${esc(query)}" style="margin-bottom:8px">
+      <div id="coBody"></div>
     </div>`;
 
   bindHeader(root, trip, ctx);
@@ -78,28 +72,47 @@ export async function renderList(root, ctx) {
       ctx.rerender();
     };
   });
-  root.querySelector("#sessMore")?.addEventListener("click", () => { sessOpen = !sessOpen; ctx.rerender(); });
-  root.querySelector("#addBtn").onclick = () => openAddCompany(ctx);
-  root.querySelectorAll("[data-sess]").forEach((row) => {
-    row.onclick = () => openSession(todaySessions.find((x) => x.id === row.dataset.sess), trip, () => ctx.rerender());
-  });
+  const paintBody = () => {
+    const q = query.trim().toLowerCase();
+    const list = q ? companies.filter((c) => c.name.toLowerCase().includes(q)) : shown;
+    const groups = groupByCategory(list);
+    const body = root.querySelector("#coBody");
+    body.innerHTML = `
+      ${q ? "" : nextHtml}
+      ${q ? "" : sessHtml}
+      ${
+        groups.length
+          ? groups.map((g) => `<div class="group-title">${esc(g.title)} · ${g.items.length}곳</div><div class="list-card ${g.title === "현장 추가" ? "dashed" : ""}">${g.items.map(rowHtml).join("")}</div>`).join("")
+          : `<div class="card" style="margin-top:12px;text-align:center;color:var(--sub)">${q ? "검색 결과가 없어요." : filter === "today" ? "오늘 방문할 업체가 없어요. 전체 보기에서 확인하거나 업체를 추가해 보세요." : "아직 업체가 없어요."}</div>`
+      }
+      <button class="btn btn-block" id="addBtn" style="margin-top:16px">${icons.plus(18)}업체 추가</button>
+    `;
+    body.querySelector("#sessMore")?.addEventListener("click", () => { sessOpen = !sessOpen; ctx.rerender(); });
+    body.querySelector("#addBtn").onclick = () => openAddCompany(ctx);
+    body.querySelectorAll("[data-sess]").forEach((row) => {
+      row.onclick = () => openSession(todaySessions.find((x) => x.id === row.dataset.sess), trip, () => ctx.rerender());
+    });
 
-  root.querySelectorAll("[data-open]").forEach((row) => {
-    const open = () => (location.hash = `#/company/${row.dataset.open}`);
-    row.addEventListener("click", (e) => {
-      if (e.target.closest("[data-toggle]")) return;
-      open();
+    body.querySelectorAll("[data-open]").forEach((row) => {
+      const open = () => (location.hash = `#/company/${row.dataset.open}`);
+      row.addEventListener("click", (e) => {
+        if (e.target.closest("[data-toggle]")) return;
+        open();
+      });
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") open();
+      });
     });
-    row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") open();
+    body.querySelectorAll("[data-toggle]").forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const c = await db.get("companies", btn.dataset.toggle);
+        await setVisited(c, day, !isVisited(c, day));
+        ctx.rerender();
+      };
     });
-  });
-  root.querySelectorAll("[data-toggle]").forEach((btn) => {
-    btn.onclick = async (e) => {
-      e.stopPropagation();
-      const c = await db.get("companies", btn.dataset.toggle);
-      await setVisited(c, day, !isVisited(c, day));
-      ctx.rerender();
-    };
-  });
+  };
+  paintBody();
+  const search = root.querySelector("#coSearch");
+  search.addEventListener("input", () => { query = search.value; paintBody(); });
 }

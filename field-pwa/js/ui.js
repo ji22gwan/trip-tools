@@ -31,6 +31,7 @@ export const icons = {
   chevD: (s) => svg('<path d="M6 9l6 6 6-6"/>', s, 2.6),
   compass: (s) => svg('<path d="M12 3l7 18-7-4-7 4z"/>', s, 2.2),
   pin: (s) => svg('<path d="M12 21s7-6.2 7-11.5A7 7 0 005 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', s, 2),
+  edit: (s) => svg('<path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/>', s),
   trash: (s) => svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', s),
 };
 

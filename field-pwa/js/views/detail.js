@@ -1,9 +1,9 @@
 // 업체 상세: 사전 메모/질문, 녹음(누적), 내 메모, 사진, 번역
 import * as db from "../db.js";
 import { esc, icons, pickFile, toast, confirmDialog } from "../ui.js";
-import { ensureVisited, formatDuration, formatTime, isVisited, loadCompanyRecords, visitNumber } from "../model.js";
+import { ensureVisited, formatDuration, formatTime, isVisited, loadCompanyRecords, visitNumber, deleteCompany } from "../model.js";
 import { Recorder, isRecordingSupported } from "../recorder.js";
-import { openTranslate } from "./shared.js";
+import { openTranslate, openAddCompany } from "./shared.js";
 import { LANGUAGES, translateText, translationConfigured } from "../translate.js";
 
 const recorder = new Recorder();
@@ -107,6 +107,8 @@ export async function renderDetail(root, ctx, companyId) {
     <div class="appbar">
       <button class="icon-btn" id="backBtn" aria-label="리스트로 돌아가기">${icons.back(24)}</button>
       <div class="appbar-main"><div class="appbar-title">${esc(company.name)}</div><div class="small muted">${esc(place || "정보 없음")}${company.core ? ` <span class="pill core-pill">★ 핵심 업체</span>` : ""}${company.dup ? ` <span class="pill dup-pill">중복 ${company.dup.i}/${company.dup.n}</span>` : ""}</div></div>
+      ${company.addedOnSite ? `<button class="icon-btn" id="editBtn" aria-label="업체 수정" style="color:var(--sub)">${icons.edit(20)}</button>` : ""}
+      <button class="icon-btn" id="delCoBtn" aria-label="업체 삭제" style="color:var(--sub)">${icons.trash(20)}</button>
     </div>
     <div class="scroll" style="padding-top:10px">
       <div class="stack">
@@ -176,6 +178,15 @@ export async function renderDetail(root, ctx, companyId) {
   // ---- 상단 ----
   $("#backBtn").onclick = () => {
     if (recorder.active) return toast("녹음을 끝낸 뒤 이동해 주세요.");
+    location.hash = "#/list";
+  };
+  $("#editBtn")?.addEventListener("click", () => openAddCompany(ctx, { edit: company, onAdded: () => ctx.rerender() }));
+  $("#delCoBtn").onclick = async () => {
+    if (recorder.active) return toast("녹음을 끝낸 뒤 삭제해 주세요.");
+    if (!(await confirmDialog(`'${company.name}' 을(를) 삭제할까요? 이 업체의 녹음·메모·사진도 함께 지워지고 되돌릴 수 없어요.`, "삭제"))) return;
+    await deleteCompany(company.id);
+    try { localStorage.removeItem(draftKey); } catch { /* 무시 */ }
+    toast("삭제했어요.");
     location.hash = "#/list";
   };
   $("#visitBtn")?.addEventListener("click", async () => {

@@ -147,6 +147,18 @@ test("현장 추가 + 녹음/메모/사진 -> 하루치 ZIP", async () => {
   assert.equal(visits.companies.find((c) => c.addedOnSite).name, "즉석 업체 G");
 });
 
+test("업체 삭제는 녹음·메모·사진까지 지운다", async () => {
+  const c = await model.addCompany(trip, { name: "삭제할 업체", category: "", hall: "1", booth: "1", day: 1 });
+  await db.put("memos", { id: "dm1", tripId: trip.id, companyId: c.id, text: "x", createdAt: 1 });
+  await db.put("recordings", { id: "dr1", tripId: trip.id, companyId: c.id, status: "done", createdAt: 1 });
+  await db.put("chunks", { recId: "dr1", seq: 0, blob: new Blob(["a"]) });
+  await model.deleteCompany(c.id);
+  assert.equal(await db.get("companies", c.id), undefined);
+  assert.equal((await db.getAllByIndex("memos", "companyId", c.id)).length, 0);
+  assert.equal((await db.getAllByIndex("recordings", "companyId", c.id)).length, 0);
+  assert.equal((await db.getAllByIndex("chunks", "recId", "dr1")).length, 0);
+});
+
 test("방문 차수 계산", async () => {
   const recs = (await db.getAllByIndex("recordings", "companyId", "c-b")).filter((r) => r.status === "done").sort((a, b) => a.createdAt - b.createdAt);
   assert.deepEqual(recs.map((r) => model.visitNumber(recs, r)), [1, 1, 2]);

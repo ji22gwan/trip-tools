@@ -50,21 +50,21 @@ export function bindHeader(root, trip, ctx) {
 }
 
 // ---------- 업체 추가 ----------
-export function openAddCompany(ctx, { onAdded } = {}) {
+export function openAddCompany(ctx, { onAdded, edit } = {}) {
   const { trip, day, companies } = ctx;
   const categories = [...new Set(companies.map((c) => c.category).filter(Boolean))];
   const { el, close } = openSheet(
     `
-    <div class="sheet-head"><h2 class="sheet-title">업체 추가</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
-    <div class="field"><label for="acName">업체 이름</label><input id="acName" class="input" autocomplete="off" placeholder="명함이나 부스 간판 그대로"></div>
+    <div class="sheet-head"><h2 class="sheet-title">${edit ? "업체 수정" : "업체 추가"}</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
+    <div class="field"><label for="acName">업체 이름</label><input id="acName" class="input" autocomplete="off" placeholder="명함이나 부스 간판 그대로" value="${esc(edit?.name || "")}"></div>
     <div class="field"><label for="acCat">카테고리</label>
-      <input id="acCat" class="input" list="acCats" autocomplete="off" placeholder="예: 휴머노이드, 용접">
+      <input id="acCat" class="input" list="acCats" autocomplete="off" placeholder="예: 휴머노이드, 용접" value="${esc(edit && edit.category !== "기타" ? edit.category : "")}">
       <datalist id="acCats">${categories.map((c) => `<option value="${esc(c)}">`).join("")}</datalist></div>
     <div class="row">
-      <div class="field" style="flex:1"><label for="acHall">홀</label><input id="acHall" class="input" placeholder="3A"></div>
-      <div class="field" style="flex:1"><label for="acBooth">부스</label><input id="acBooth" class="input" placeholder="215"></div>
+      <div class="field" style="flex:1"><label for="acHall">홀</label><input id="acHall" class="input" placeholder="3A" value="${esc(edit?.hall || "")}"></div>
+      <div class="field" style="flex:1"><label for="acBooth">부스</label><input id="acBooth" class="input" placeholder="215" value="${esc(edit?.booth || "")}"></div>
     </div>
-    <button class="btn btn-primary btn-block" id="acSave">추가하고 열기</button>`,
+    <button class="btn btn-primary btn-block" id="acSave">${edit ? "저장" : "추가하고 열기"}</button>`,
     { bottom: true },
   );
   el.querySelector("#acName").focus();
@@ -72,6 +72,13 @@ export function openAddCompany(ctx, { onAdded } = {}) {
     const name = el.querySelector("#acName").value.trim();
     if (!name) {
       toast("업체 이름을 입력해 주세요.");
+      return;
+    }
+    if (edit) {
+      const upd = { ...edit, name, category: el.querySelector("#acCat").value.trim() || "기타", hall: el.querySelector("#acHall").value.trim(), booth: el.querySelector("#acBooth").value.trim() };
+      await db.put("companies", upd);
+      close();
+      onAdded?.(upd);
       return;
     }
     const c = await addCompany(trip, {
