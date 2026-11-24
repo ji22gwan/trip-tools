@@ -269,8 +269,6 @@ def day_markdown(r: dict, photos: dict | None = None) -> str:  # photos: 업체 
         L += ["## 내일 계획", r["tomorrow"], ""]
     if r.get("gaps"):
         L += ["## 오늘 미흡한 부분", r["gaps"], ""]
-    if r["checks"]:
-        L += ["## 확인 필요", *[f"- {x['company']}: {x['text']}" for x in r["checks"]], ""]
     return "\n".join(L)
 
 
@@ -334,8 +332,6 @@ def final_markdown(r: dict) -> str:
         L.append("")
     if r["notVisited"]:
         L += ["## 방문하지 못한 계획 업체", ", ".join(r["notVisited"]), ""]
-    if r["checks"]:
-        L += ["## 확인 필요 항목", *[f"- {x['day']}일차 {x['company']}: {x['text']}" for x in r["checks"]], ""]
     return "\n".join(L)
 
 
@@ -420,10 +416,6 @@ def day_docx(store: Store, tid: str, r: dict, with_photos: bool = True) -> bytes
     if r.get("gaps"):
         d.add_heading("오늘 미흡한 부분", 1)
         d.add_paragraph(r["gaps"])
-    if r["checks"]:
-        d.add_heading("확인 필요", 1)
-        for x in r["checks"]:
-            d.add_paragraph(f"{x['company']}: {x['text']}", style="List Bullet")
     buf = io.BytesIO()
     d.save(buf)
     return buf.getvalue()
@@ -473,10 +465,6 @@ def final_docx(store: Store, tid: str, r: dict) -> bytes:
     if r["notVisited"]:
         d.add_heading("방문하지 못한 계획 업체", 1)
         d.add_paragraph(", ".join(r["notVisited"]))
-    if r["checks"]:
-        d.add_heading("확인 필요 항목", 1)
-        for x in r["checks"]:
-            d.add_paragraph(f"{x['day']}일차 {x['company']}: {x['text']}", style="List Bullet")
     buf = io.BytesIO()
     d.save(buf)
     return buf.getvalue()

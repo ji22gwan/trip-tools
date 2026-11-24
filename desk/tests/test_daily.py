@@ -169,7 +169,7 @@ def test_apply_reply_and_report(store, zpath):
     assert "Beta Weld" in r["tomorrow"]
     md = reports.day_markdown(r)
     assert "페이로드는 20kg 정도이고 EtherCAT" in md or "페이로드 약 20kg" in md
-    assert "{{" not in md and "> ★ 납기는 직접 다시 확인" in md and "## 확인 필요" in md
+    assert "{{" not in md and "> ★ 납기는 직접 다시 확인" in md and "## 확인 필요" not in md  # 보고서 맨 아래 확인 필요 목록은 넣지 않는다
     # 미리보기 문장은 사용자가 고친 것이 우선이고, None 으로 자동 문장으로 되돌린다
     st = daily.get_state(store, t["id"], 1)
     st["tomorrow"] = "직접 쓴 계획"

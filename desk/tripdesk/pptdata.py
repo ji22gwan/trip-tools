@@ -206,8 +206,6 @@ def build_markdown(r: dict, ppt: dict, photos: dict[str, list[str]]) -> str:
                 L += _bul(b["points"], "  ")
         else:
             L.append(f"- {NEED}")
-    if r["checks"]:
-        L += ["", "## 확인 필요 항목", *[f"- {x['day']}일차 {x['company']}: {x['text']}" for x in r["checks"]]]
     return "\n".join(L) + "\n"
 
 
