@@ -6,7 +6,8 @@ import zipfile
 from pathlib import Path
 
 from . import SCHEMA_VERSION, research, sessions as sess
-from . import booths, daily, local, travel
+from . import booths, daily, local, pdfreport, travel
+from .launcher import find_browser
 from .store import Store, StoreError, hall_key
 
 
@@ -57,6 +58,11 @@ def check(store: Store, trip_id: str) -> list[str]:
         warns.append("패키지에 넣을 업체를 아직 고르지 않았어요. 현장에서 하나씩 추가해야 합니다.")
     elif any(x["day"] is None for x in stops):
         warns.append(f"일정(일차)이 정해지지 않은 방문 지점(부스)이 {sum(x['day'] is None for x in stops)}곳 있어요.")
+    edited = [n for n in range(1, len(store.get_trip(trip_id).get("days", [])) + 1) if (daily.day_dir(store, trip_id, n) / "final" / "보고서.md").is_file()]
+    if edited and not find_browser():
+        warns.append("수정한 일간 보고서를 PDF 로 바꾸려면 크롬(또는 엣지)이 필요한데 찾지 못했어요. 이대로 보내면 PDF 는 빠져요.")
+    elif edited:
+        warns.append(f"수정한 일간 보고서({', '.join(f'{n}일차' for n in edited)})는 PDF 로 바꿔 함께 보내요. 처음 한 번은 일차마다 십수 초 걸려요.")
     ss = store.get_sessions(trip_id)
     if any(not x.get("verified") for x in ss):
         warns.append(f"공식 사이트에서 확인하지 못한 세션이 {sum(not x.get('verified') for x in ss)}개 있어요. 일정이 바뀌었을 수 있으니 확인해 주세요.")
@@ -96,8 +102,12 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
             if len(st) > 1:  # 같은 업체의 다른 부스 — 폰에서 '중복 업체'로 알아볼 수 있게 한다
                 item["dup"] = {"n": len(st), "i": x["index"] + 1, "others": [{"id": y["id"], "hall": y["hall"], "booth": y["booth"], "day": y["day"]} for y in st if y is not x]}
             companies.append(item)
+    # 수정본을 올려 둔 일차는 PDF 로 바꿔 함께 보낸다(사진을 줄여 용량을 아낀다). 폰 앱에서 볼 수 있다.
+    pdfs = {n: p for n in range(1, len(trip["days"]) + 1) if (p := pdfreport.day_report_pdf(store, trip_id, n))}
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for n, p in pdfs.items():
+            z.writestr(f"{root}/reports/day{n}.pdf", p)
         z.writestr(f"{root}/trip.json", json.dumps(trip_out, ensure_ascii=False, indent=2))
         z.writestr(f"{root}/companies.json", json.dumps(companies, ensure_ascii=False, indent=2))
         z.writestr(f"{root}/glossary.json", json.dumps({"terms": store.get_glossary(trip_id)}, ensure_ascii=False, indent=2))

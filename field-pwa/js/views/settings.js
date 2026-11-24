@@ -99,7 +99,7 @@ export async function renderSettings(root, ctx) {
     b.onclick = async () => {
       const t = trips.find((x) => x.id === b.dataset.del);
       if (!(await confirmDialog(`'${t.name}' 출장과 모든 기록(녹음·메모·사진)을 이 폰에서 삭제할까요? 먼저 내보내기를 했는지 확인하세요.`, "삭제"))) return;
-      for (const store of ["companies", "recordings", "memos", "photos", "maps", "exports"]) {
+      for (const store of ["companies", "recordings", "memos", "photos", "maps", "exports", "reports"]) {
         if (store === "recordings") {
           const recs = await db.getAllByIndex("recordings", "tripId", t.id);
           for (const r of recs) await db.delAllByIndex("chunks", "recId", r.id);

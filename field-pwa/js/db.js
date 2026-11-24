@@ -1,6 +1,6 @@
 // IndexedDB 래퍼. 모든 현장 데이터는 폰 안에만 저장됩니다.
 const DB_NAME = "tripfield";
-const DB_VERSION = 2; // 2: exhibitors 저장소 추가(지금은 쓰지 않지만 버전을 낮추면 오류가 나므로 유지)
+const DB_VERSION = 3; // 2: exhibitors 저장소 추가(지금은 쓰지 않지만 버전을 낮추면 오류가 나므로 유지), 3: reports(일일 보고서 PDF)
 
 const STORES = {
   trips: { keyPath: "id" },
@@ -11,6 +11,7 @@ const STORES = {
   photos: { keyPath: "id", indexes: ["companyId", "tripId"] },
   maps: { keyPath: "id", indexes: ["tripId"] },
   exports: { keyPath: "id", indexes: ["tripId"] },
+  reports: { keyPath: "id", indexes: ["tripId"] }, // id = "<tripId>:<일차>", { tripId, day, blob(PDF), at }
   exhibitors: { keyPath: "id", indexes: ["tripId"] }, // 출장당 1건: { id: tripId, items: [{name, hall, booth, category, country}] }
 };
 

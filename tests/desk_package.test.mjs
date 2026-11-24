@@ -25,6 +25,7 @@ globalThis.localStorage = {
 };
 const { importTripPackage } = await import("../field-pwa/js/importer.js");
 const model = await import("../field-pwa/js/model.js");
+const db = await import("../field-pwa/js/db.js");
 
 const py = `
 import sys, pathlib
@@ -40,6 +41,11 @@ s.set_glossary(t["id"], ["EtherCAT"])
 travel.save(s, t["id"], {"hotels": [{"name": "Hotel X", "stars": 4, "address": "Hauptstr. 1", "checkIn": "2026-11-24", "checkOut": "2026-11-25", "confirmation": "H1"}]})
 daily.day_dir(s, t["id"], 1).mkdir(parents=True, exist_ok=True)  # import 전이라 일차 폴더가 없다
 st = daily.get_state(s, t["id"], 1); st["gaps"] = "A사 가격 확인 못 함"; daily.save_state(s, t["id"], 1, st)
+import zipfile
+zp = pathlib.Path(sys.argv[1]) / "edit.zip"
+with zipfile.ZipFile(zp, "w") as z:
+    z.writestr("보고서.md", "# 수정본\\n\\n- 내용\\n")
+daily.save_final_zip(s, t["id"], 1, zp)
 s.update_trip(t["id"], questions=["공통 질문", "가격"])
 s.update_trip(t["id"], hallPins={"Hall 3A": {"x": 0.25, "y": 0.5, "page": 0}})
 name, data = package.build_package(s, t["id"])
@@ -51,7 +57,10 @@ test("Trip Desk 패키지를 폰 앱이 불러온다", async () => {
   const png = path.join(here, "..", "docs", "map_sample.png");
   const mapSrc = fs.existsSync(png) ? png : path.join(tmp, "m.png");
   if (!fs.existsSync(mapSrc)) fs.writeFileSync(mapSrc, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==", "base64"));
-  const buf = execFileSync("python3", ["-I", "-c", py, path.join(tmp, "home"), mapSrc], { cwd: path.join(here, ".."), maxBuffer: 1 << 26 });
+  // 크롬 대신 --print-to-pdf 경로에 가짜 PDF 를 쓰는 스크립트(실제 변환은 느리고 환경마다 달라서)
+  const fake = path.join(tmp, "fakechrome.sh");
+  fs.writeFileSync(fake, '#!/bin/sh\nfor a in "$@"; do case "$a" in --print-to-pdf=*) f="${a#--print-to-pdf=}";; esac; done\nprintf "%%PDF-1.4\\n" > "$f"\nhead -c 900 /dev/zero | tr "\\000" "x" >> "$f"\n', { mode: 0o755 });
+  const buf = execFileSync("python3", ["-I", "-c", py, path.join(tmp, "home"), mapSrc], { cwd: path.join(here, ".."), maxBuffer: 1 << 26, env: { ...process.env, TRIPDESK_BROWSER: fake } });
   const r = await importTripPackage(buf);
   assert.equal(r.trip.name, "테스트 전시회");
   assert.deepEqual(r.trip.days, ["2026-11-24", "2026-11-25"]);
@@ -62,6 +71,11 @@ test("Trip Desk 패키지를 폰 앱이 불러온다", async () => {
   // 홀 위치가 폰까지 오고, 1일차 업체가 홀별로 묶여 지도에 표시된다
   assert.deepEqual(r.trip.hallPins["3A"], { x: 0.25, y: 0.5, page: 0 });
   assert.deepEqual(r.trip.gaps, [{ day: 1, text: "A사 가격 확인 못 함" }]); // 일간 보고서의 미흡한 부분이 폰까지 온다
+  assert.equal(r.reports, 1); // 수정본을 올린 1일차만 PDF 로 온다
+  const rep = await db.get("reports", `${r.trip.id}:1`);
+  assert.equal(rep.day, 1);
+  assert.ok(rep.blob.size > 500 && rep.blob.type === "application/pdf");
+  assert.equal(await db.get("reports", `${r.trip.id}:2`), undefined);
   assert.equal(r.trip.bookings.hotels[0].name, "Hotel X");
   assert.deepEqual(r.trip.bookings.flights, []);
   const hm = model.hallMarkers(cs, 1, r.trip.hallPins);

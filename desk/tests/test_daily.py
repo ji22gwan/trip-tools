@@ -8,7 +8,7 @@ import zipfile
 
 import pytest
 
-from tripdesk import daily, dayai, reports, server, transcribe
+from tripdesk import daily, dayai, pdfreport, reports, server, transcribe
 from tripdesk.store import StoreError
 
 JPG = b"\xff\xd8\xff\xe0" + b"0" * 64
@@ -251,6 +251,31 @@ def test_final_report_uses_uploaded_edit(store, zpath, tmp_path):
     assert "내가 고친 개조식 하나." in reports.final_markdown(r) and "무시될 종합 줄" not in reports.final_markdown(r)
     # 수정본이 없는 업체는 AI 정리 그대로
     assert next(c for c in d["companies"] if c["name"] != "Alpha Robotics")["points"] == next(c for c in before["companies"] if c["name"] != "Alpha Robotics")["points"]
+
+
+def test_md_to_html_and_pdf_cache(store, zpath, tmp_path, monkeypatch):
+    h = pdfreport.md_to_html("# 제목\n\n- 항목 **굵게**\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n| | |\n| :---: | :---: |\n| ![x](photos/a.jpg) | ![y](photos/b.jpg) |\n\n> 메모\n")
+    assert "<h1>제목</h1>" in h and "<li>항목 <b>굵게</b></li>" in h and "<th>a</th>" in h
+    assert '<table class="photos">' in h and 'src="photos/a.jpg"' in h and "<blockquote>메모</blockquote>" in h and "<script" not in pdfreport.md_to_html("<script>x</script>")
+    t = prep(store, zpath)
+    assert pdfreport.day_report_pdf(store, t["id"], 1) is None  # 수정본이 없으면 만들지 않는다
+    zp = tmp_path / "e.zip"
+    with zipfile.ZipFile(zp, "w") as z:
+        z.writestr("보고서.md", "# 보고서\n\n- 내용\n")
+    daily.save_final_zip(store, t["id"], 1, zp)
+    calls = []
+    monkeypatch.setattr(pdfreport, "find_browser", lambda: ["fake"])
+    monkeypatch.setattr(pdfreport, "make_pdf", lambda md, base, out, br: (calls.append(md), out.write_bytes(b"%PDF" + b"x" * 600)))
+    assert pdfreport.day_report_pdf(store, t["id"], 1).startswith(b"%PDF") and len(calls) == 1
+    pdfreport.day_report_pdf(store, t["id"], 1)
+    assert len(calls) == 1  # 내용이 같으면 전에 만든 PDF 를 쓴다
+    st = daily.get_state(store, t["id"], 1)
+    st["gaps"] = "가격 확인 못 함"
+    daily.save_state(store, t["id"], 1, st)
+    pdfreport.day_report_pdf(store, t["id"], 1)
+    assert len(calls) == 2 and "## 오늘 미흡한 부분" in calls[1] and "가격 확인 못 함" in calls[1]  # 적어 둔 미흡한 부분이 끝에 붙는다
+    monkeypatch.setattr(pdfreport, "find_browser", lambda: None)
+    assert pdfreport.day_report_pdf(store, t["id"], 1) is None  # 브라우저가 없으면 건너뛴다
 
 
 def test_day_markdown_zip_has_photos(store, zpath):

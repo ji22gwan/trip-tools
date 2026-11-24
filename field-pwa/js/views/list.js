@@ -2,7 +2,7 @@
 import { esc, icons } from "../ui.js";
 import { companiesForDay, groupByCategory, isVisited, setVisited } from "../model.js";
 import * as db from "../db.js";
-import { headerHtml, bindHeader, openAddCompany, openSession, dupBadge } from "./shared.js";
+import { headerHtml, bindHeader, openAddCompany, openSession, dupBadge, openReport } from "./shared.js";
 
 let filter = "today";
 let sessOpen = false;
@@ -10,6 +10,7 @@ let query = ""; // 업체명 검색어. 있으면 오늘/전체 구분 없이 �
 
 export async function renderList(root, ctx) {
   const { trip, day, companies } = ctx;
+  const reports = (await db.getAllByIndex("reports", "tripId", trip.id)).sort((a, b) => a.day - b.day);
   const shown = filter === "today" ? companiesForDay(companies, day) : companies;
   const planned = shown.filter((c) => !c.addedOnSite);
   const done = planned.filter((c) => isVisited(c, day)).length;
@@ -62,6 +63,7 @@ export async function renderList(root, ctx) {
     </div>
     <div class="scroll">
       ${(trip.gaps || []).length ? `<details class="card" style="margin-bottom:8px"><summary style="font-weight:800">미흡한 부분 · ${trip.gaps.length}일</summary>${trip.gaps.map((g) => `<div style="margin-top:8px"><b>${g.day ? `Day ${g.day}` : ""}</b><div style="white-space:pre-wrap;line-height:1.6">${esc(g.text)}</div></div>`).join("")}</details>` : ""}
+      ${reports.length ? `<div class="card" style="margin-bottom:8px"><div class="card-title">일일 보고서 (PDF)</div><div class="row" style="gap:8px;flex-wrap:wrap">${reports.map((r) => `<button class="btn btn-sm" data-rep="${r.day}">Day ${r.day} 보고서</button>`).join("")}</div></div>` : ""}
       <input id="coSearch" class="input" type="search" placeholder="업체명 검색" aria-label="업체명 검색" autocomplete="off" value="${esc(query)}" style="margin-bottom:8px">
       <div id="coBody"></div>
     </div>`;
@@ -114,6 +116,7 @@ export async function renderList(root, ctx) {
     });
   };
   paintBody();
+  root.querySelectorAll("[data-rep]").forEach((b) => { b.onclick = () => openReport(reports.find((r) => String(r.day) === b.dataset.rep)); });
   const search = root.querySelector("#coSearch");
   search.addEventListener("input", () => { query = search.value; paintBody(); });
 }

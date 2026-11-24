@@ -2,6 +2,7 @@
 import { esc, icons, openSheet, toast } from "../ui.js";
 import * as db from "../db.js";
 import { addCompany, dayLabel } from "../model.js";
+import { pdfToImages } from "../importer.js";
 import { LANGUAGES, translateText, translationConfigured, speechRecognitionClass, getLastTiming } from "../translate.js";
 
 const hdrDay = (trip, d) => { const [, m, dd] = (trip.days[d - 1] || "").split("-").map(Number); return m ? `Day ${d} · ${m}/${dd}` : `Day ${d}`; };
@@ -92,6 +93,25 @@ export function openAddCompany(ctx, { onAdded, edit } = {}) {
     onAdded?.(c);
     location.hash = `#/company/${c.id}`;
   };
+}
+
+// ---------- 일일 보고서(PDF) 보기 ----------
+// 페이지를 이미지로 그려 보여 주고, PDF 파일 자체는 저장·다른 앱으로 열 수 있게 둔다.
+export function openReport(rec) {
+  const url = URL.createObjectURL(rec.blob);
+  const { el } = openSheet(`
+    <div class="sheet-head"><h2 class="sheet-title">Day ${rec.day} 보고서</h2><button class="icon-btn" data-close aria-label="닫기" style="margin-right:-8px">${icons.close(22)}</button></div>
+    <a class="btn btn-block" href="${url}" download="day${rec.day}_보고서.pdf">PDF 저장 · 다른 앱으로 열기</a>
+    <div id="rpPages" class="stack" style="gap:8px"><div class="small muted">불러오는 중…</div></div>`, { onClose: () => URL.revokeObjectURL(url) });
+  const box = el.querySelector("#rpPages");
+  (async () => {
+    try {
+      const pages = await pdfToImages(await rec.blob.arrayBuffer(), { maxPages: 40, targetWidth: 1100, maxPixels: 2_500_000 });
+      box.replaceChildren(...pages.map((p, i) => Object.assign(new Image(), { src: URL.createObjectURL(p.blob), alt: `${i + 1}쪽`, style: "width:100%;border:1px solid var(--line);border-radius:8px" })));
+    } catch {
+      box.textContent = "화면에서 미리 보지 못했어요. 위 버튼으로 PDF 를 열어 주세요.";
+    }
+  })();
 }
 
 // ---------- 번역 팝업 ----------

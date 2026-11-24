@@ -183,6 +183,16 @@ export async function importTripPackage(file, onStage = () => {}) {
     prev ? updated++ : added++;
   }
 
+  // 일일 보고서 PDF (Desk 에서 수정본을 올린 일차). 같은 일차는 새것으로 바꾼다.
+  let reports = 0;
+  for (const name of Object.keys(zip.files)) {
+    const m = !zip.files[name].dir && name.match(/(^|\/)reports\/day(\d{1,2})\.pdf$/i);
+    if (!m) continue;
+    const buf = await zip.files[name].async("arraybuffer");
+    await db.put("reports", { id: `${trip.id}:${Number(m[2])}`, tripId: trip.id, day: Number(m[2]), blob: new Blob([buf], { type: "application/pdf" }), at: Date.now() });
+    reports++;
+  }
+
   // 맵
   const mapPaths = Object.keys(zip.files).filter(
     (n) => !zip.files[n].dir && /(^|\/)map\//i.test(n) && /\.(pdf|png|jpe?g|webp)$/i.test(n),
@@ -199,7 +209,7 @@ export async function importTripPackage(file, onStage = () => {}) {
   }
 
   db.setActiveTripId(trip.id);
-  return { trip, added, updated, maps };
+  return { trip, added, updated, maps, reports };
 }
 
 function cleanSessions(list) {
