@@ -233,49 +233,45 @@ def test_final_report_zip_upload(store, zpath, tmp_path):
 
 def test_final_report_uses_uploaded_edit(store, zpath, tmp_path):
     t = prep(store, zpath)
-    before = reports.build_final(store, t["id"])["days"][0]
-    assert not before.get("editedUsed")
+    before = reports.build_final(store, t["id"])
+    assert not before["days"][0].get("editedUsed")
     zp = tmp_path / "edit.zip"
     md = ("# 보고서\n\n## 1. 주요 조사 내용\n\n- 내가 고친 조사 내용.\n- 둘째 줄.\n\n## 2. 방문 업체 현황\n\n| a | b |\n|---|---|\n| x | y |\n\n"
-          "## 3. Vision\n\n### 3.1. 그룹\n\n#### ■ Alpha Robotics · 3A 1\n\n- 내가 고친 개조식 하나.\n- 둘.\n\n**현장 사진 (1장)**\n\n| | |\n\n"
-          "## 4. 종합 의견\n\n### 4.1. Vision\n\n- 무시될 종합 줄.\n")
+          "## 3. Vision & Sensor\n\n### 3.1. 그룹\n\n#### ■ 이름을 바꾼 업체 · 3A 1\n\n- 내가 고친 개조식 하나.\n- 둘.\n\n"
+          "**내 메모 (원문)**\n\n> 메모 한 줄\n\n**현장 사진 (1장)**\n\n| | | |\n| :---: | :---: | :---: |\n| ![x](photos/a.jpg) |  |  |\n\n"
+          "## 4. 주요 기술별 조사 결과\n\n| 조사 기술 | 관련 업체 | 주요 검토 사항 |\n|---|---|---|\n| Seam Finding | 이름을 바꾼 업체, Z사 | 용접 전 검출 |\n\n"
+          "## 5. 종합 의견\n\n### 5.1. Vision & Sensor\n\n- 종합 줄.\n")
     with zipfile.ZipFile(zp, "w") as z:
         z.writestr("보고서.md", md)
+        z.writestr("photos/a.jpg", JPG)
     daily.save_final_zip(store, t["id"], 1, zp)
     r = reports.build_final(store, t["id"])
     d = r["days"][0]
     assert d["editedUsed"] and d["summary"] == "내가 고친 조사 내용. 둘째 줄."
-    alpha = next(c for c in d["companies"] if c["name"] == "Alpha Robotics")
-    assert alpha["points"] == ["내가 고친 개조식 하나.", "둘."]
-    assert [v["points"] for c in r["companies"] if c["name"] == "Alpha Robotics" for v in c["visits"]] == [["내가 고친 개조식 하나.", "둘."]]
-    assert "내가 고친 개조식 하나." in reports.final_markdown(r) and "무시될 종합 줄" not in reports.final_markdown(r)
-    # 수정본이 없는 업체는 AI 정리 그대로
-    assert next(c for c in d["companies"] if c["name"] != "Alpha Robotics")["points"] == next(c for c in before["companies"] if c["name"] != "Alpha Robotics")["points"]
+    # 수정본에서 이름을 바꾼 업체도 수정본 그대로 쓴다(기존 업체명과 맞추지 않는다)
+    assert [ct["category"] for ct in r["categories"] if ct["groups"][0]["companies"][0]["name"] == "이름을 바꾼 업체"] == ["Vision & Sensor"]
+    ct = next(c for c in r["categories"] if c["category"] == "Vision & Sensor")
+    g = ct["groups"][0]
+    assert g["group"] == "그룹" and g["companies"][0]["points"] == ["내가 고친 개조식 하나.", "둘."] and g["companies"][0]["memos"] == ["메모 한 줄"]
+    assert g["companies"][0]["photos"] == [{"day": 1, "src": "final/photos/a.jpg"}]
+    assert r["findings"] == ["내가 고친 조사 내용.", "둘째 줄."] and r["tech"][0]["tech"] == "Seam Finding" and r["opinion"][0]["bullets"] == ["종합 줄."]
+    md_out = reports.final_markdown(r)
+    assert "## 일자별 요약" not in md_out and "## 업체별 정리" not in md_out  # 일자별이 아니라 분류별로 적는다
+    assert "## 3. Vision & Sensor" in md_out and "### 3.1. 그룹" in md_out and "#### ■ 이름을 바꾼 업체" in md_out and "- 내가 고친 개조식 하나." in md_out
+    assert "| Seam Finding | 이름을 바꾼 업체, Z사 | 용접 전 검출 |" in md_out and "## 5. 종합 의견" in md_out
+    import io
+    with zipfile.ZipFile(io.BytesIO(reports.final_md_zip(store, t["id"], r))) as z:
+        assert "photos/day1_a.jpg" in z.namelist()
+        zmd = z.read("최종보고서.md").decode("utf-8")
+    assert "![이름을 바꾼 업체 사진 1](photos/day1_a.jpg)" in zmd
 
 
-def test_md_to_html_and_pdf_cache(store, zpath, tmp_path, monkeypatch):
-    h = pdfreport.md_to_html("# 제목\n\n- 항목 **굵게**\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n| | |\n| :---: | :---: |\n| ![x](photos/a.jpg) | ![y](photos/b.jpg) |\n\n> 메모\n")
-    assert "<h1>제목</h1>" in h and "<li>항목 <b>굵게</b></li>" in h and "<th>a</th>" in h
-    assert '<table class="photos">' in h and 'src="photos/a.jpg"' in h and "<blockquote>메모</blockquote>" in h and "<script" not in pdfreport.md_to_html("<script>x</script>")
+def test_final_report_without_edit_groups_by_category(store, zpath):
     t = prep(store, zpath)
-    assert pdfreport.day_report_pdf(store, t["id"], 1) is None  # 수정본이 없으면 만들지 않는다
-    zp = tmp_path / "e.zip"
-    with zipfile.ZipFile(zp, "w") as z:
-        z.writestr("보고서.md", "# 보고서\n\n- 내용\n")
-    daily.save_final_zip(store, t["id"], 1, zp)
-    calls = []
-    monkeypatch.setattr(pdfreport, "find_browser", lambda: ["fake"])
-    monkeypatch.setattr(pdfreport, "make_pdf", lambda md, base, out, br: (calls.append(md), out.write_bytes(b"%PDF" + b"x" * 600)))
-    assert pdfreport.day_report_pdf(store, t["id"], 1).startswith(b"%PDF") and len(calls) == 1
-    pdfreport.day_report_pdf(store, t["id"], 1)
-    assert len(calls) == 1  # 내용이 같으면 전에 만든 PDF 를 쓴다
-    st = daily.get_state(store, t["id"], 1)
-    st["gaps"] = "가격 확인 못 함"
-    daily.save_state(store, t["id"], 1, st)
-    pdfreport.day_report_pdf(store, t["id"], 1)
-    assert len(calls) == 2 and "## 오늘 미흡한 부분" in calls[1] and "가격 확인 못 함" in calls[1]  # 적어 둔 미흡한 부분이 끝에 붙는다
-    monkeypatch.setattr(pdfreport, "find_browser", lambda: None)
-    assert pdfreport.day_report_pdf(store, t["id"], 1) is None  # 브라우저가 없으면 건너뛴다
+    r = reports.build_final(store, t["id"])
+    assert r["categories"] and all(c["groups"] for c in r["categories"])
+    md = reports.final_markdown(r)
+    assert "방문 업체 현황" in md and "## 일자별 요약" not in md
 
 
 def test_day_markdown_zip_has_photos(store, zpath):

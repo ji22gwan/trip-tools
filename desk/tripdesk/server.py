@@ -630,6 +630,11 @@ class Api:
         r = reports.build_final(self.store, m["tid"])
         return ("bytes", reports.final_markdown(r).encode("utf-8"), "text/markdown; charset=utf-8", f"{r['tripName']}_최종보고서.md")
 
+    @route("GET", r"/api/trips/(?P<tid>[^/]+)/final-md\.zip")
+    def final_md_zip(self, m, q, body):
+        r = reports.build_final(self.store, m["tid"])
+        return ("bytes", reports.final_md_zip(self.store, m["tid"], r), "application/zip", f"{r['tripName']}_최종보고서_Markdown.zip")
+
     @route("GET", r"/api/trips/(?P<tid>[^/]+)/final\.docx")
     def final_docx(self, m, q, body):
         r = reports.build_final(self.store, m["tid"])

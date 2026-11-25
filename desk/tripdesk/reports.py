@@ -91,33 +91,117 @@ def _attended(days: list[dict]) -> list[dict]:
     return sorted(out, key=lambda x: (x.get("date", ""), x.get("start") or "99:99"))
 
 
+_RESERVED = ("주요 조사 내용", "방문 업체 현황", "주요 기술별 조사 결과", "종합 의견", "내일 계획", "오늘 미흡한 부분")
+_IMG = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
+
+
+def _title(t: str) -> str:
+    return re.sub(r"^\d+(\.\d+)*\.?\s*", "", t).strip()
+
+
+def parse_day_md(md: str) -> dict:
+    """일간 보고서 수정본(.md)의 구조를 읽는다: 주요 조사 내용, 분류(##)·그룹(###)·업체(■)와 개조식·메모·사진, 기술별 표, 종합 의견."""
+    out = {"findings": [], "tech": [], "opinion": [], "companies": []}
+    kind, cat, grp, cur, op = "", "", "", None, None
+    for line in md.splitlines():
+        s = line.strip()
+        m = re.match(r"^(#{1,4})\s+(.*)$", s)
+        if m:
+            lvl, text = len(m.group(1)), m.group(2).strip()
+            if lvl <= 2:
+                t = _title(text)
+                kind = next((x for x in _RESERVED if t.startswith(x)), "cat" if lvl == 2 else "")
+                cat, grp, cur, op = (t if kind == "cat" else ""), "", None, None
+            elif text.startswith("■"):
+                nm = re.split(r"\s+·\s+|\s*\(현장 추가\)", text.lstrip("■").strip())[0].strip()
+                cur = {"name": nm, "category": cat or "기타", "group": grp, "points": [], "memos": [], "photos": [], "addedOnSite": "(현장 추가)" in text}
+                out["companies"].append(cur)
+            elif kind == "cat":
+                grp, cur = _title(text), None
+            elif kind == "종합 의견":
+                op = {"category": _title(text), "bullets": []}
+                out["opinion"].append(op)
+            continue
+        if cur is not None:
+            if s.startswith("- "):
+                cur["points"].append(s[2:].strip())
+            elif s.startswith(">"):
+                cur["memos"].append(s.lstrip("> ").strip())
+            cur["photos"] += _IMG.findall(s)
+        elif kind == "주요 조사 내용" and s.startswith("- "):
+            out["findings"].append(s[2:].strip())
+        elif kind == "주요 기술별 조사 결과" and s.startswith("|") and not re.match(r"^\|\s*:?-{3,}", s):
+            c = [x.strip() for x in s.strip("|").split("|")]
+            if len(c) >= 3 and c[0] != "조사 기술":
+                out["tech"].append({"tech": c[0], "companies": [x.strip() for x in c[1].split(",") if x.strip()], "review": c[2]})
+        elif kind == "종합 의견" and op is not None and s.startswith("- "):
+            op["bullets"].append(s[2:].strip())
+    return out
+
+
 def _apply_edited(store: Store, tid: str, d: dict) -> None:
-    """일간 보고서에 올려 둔 수정본이 있으면, 최종 보고서는 그 내용(주요 조사 내용·업체별 개조식)을 기준으로 한다."""
+    """수정본을 올린 일차는 그 내용이 곧 이 날의 기준이다: 분류·그룹·업체·개조식·사진·종합 의견 모두 수정본에서 읽는다."""
     from .research import norm_name
 
     p = daily.day_dir(store, tid, d["day"]) / "final" / "보고서.md"
     if not p.is_file():
         return
-    sec, name, found, pts = "", None, [], {}
-    for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
-        s = line.strip()
-        if s.startswith("#"):
-            sec = s
-            m = re.match(r"^#{3,4}\s*■\s*(.+)$", s)
-            name = re.split(r"\s+·\s+|\s*\(현장 추가\)", m.group(1))[0].strip() if m else None
-        elif s.startswith("- "):
-            if name:
-                pts.setdefault(norm_name(name), []).append(s[2:].strip())
-            elif re.match(r"^##\s*\d*\.?\s*주요 조사 내용", sec):
-                found.append(s[2:].strip())
-    if found:
-        d["summary"], d["summaryIsAi"] = " ".join(found), True
-    for c in d["companies"]:
+    e = parse_day_md(p.read_text(encoding="utf-8", errors="replace"))
+    if e["findings"]:
+        d["summary"], d["summaryIsAi"] = " ".join(e["findings"]), True
+    by = {norm_name(c["name"]): c for c in e["companies"]}
+    for c in d["companies"]:  # 업체 id 로 이어지는 기존 항목(PPT 자료 등)에도 수정본 개조식을 반영
         k = norm_name(c["name"])
-        hit = pts.get(k) or next((v for kk, v in pts.items() if len(k) >= 3 and len(kk) >= 3 and (k in kk or kk in k)), None)
-        if hit:
-            c["points"] = hit
+        hit = by.get(k) or next((v for kk, v in by.items() if len(k) >= 3 and len(kk) >= 3 and (k in kk or kk in k)), None)
+        if hit and hit["points"]:
+            c["points"] = hit["points"]
+    for c in e["companies"]:
+        c["photos"] = [{"day": d["day"], "src": "final/" + x} for x in c["photos"] if not x.startswith(("http", "/", "..")) and ".." not in x]
+    d["findings"], d["tech"], d["opinion"], d["catCompanies"] = e["findings"], e["tech"], e["opinion"], e["companies"]
     d["editedUsed"] = True
+
+
+def _from_state(d: dict) -> list[dict]:
+    """수정본이 없는 일차: AI 가 정한 분류(없으면 입력한 카테고리)와 정리된 내용으로 같은 모양을 만든다."""
+    return [{"name": c["name"], "category": c.get("category") or "기타", "group": c.get("group", ""), "points": c["points"] or [], "addedOnSite": c["addedOnSite"],
+             "memos": [(("★ " if m.get("important") else "") + m["text"]) for m in c["memos"]],
+             "photos": [{"day": d["day"], "src": ph["file"]} for ph in c["photos"]]}
+            for c in d["companies"] if c["visited"] or c["points"] or c["recordings"] or c["memos"] or c["photos"]]
+
+
+def _merge_categories(days: list[dict]) -> dict:
+    """일자 구분 없이 분류별로 합친다. 같은 업체는 한 번만, 여러 날 내용은 이어 붙인다."""
+    from .research import norm_name
+
+    flat: list[dict] = []
+    for d in days:
+        for c in d.get("catCompanies") or _from_state(d):
+            k = norm_name(c["name"])
+            hit = next((m for m in flat if m["key"] == k or (len(k) >= 3 and len(m["key"]) >= 3 and (k in m["key"] or m["key"] in k))), None)
+            if hit is None:
+                flat.append({**c, "key": k, "points": list(c["points"]), "memos": list(c.get("memos", [])), "photos": list(c["photos"]), "days": [d["day"]]})
+                continue
+            hit["points"] += [x for x in c["points"] if x not in hit["points"]]
+            hit["memos"] += [x for x in c.get("memos", []) if x not in hit["memos"]]
+            hit["photos"] += c["photos"]
+            hit["days"].append(d["day"])
+    cats: dict[str, dict[str, list[dict]]] = {}
+    for i, m in enumerate(flat):
+        m["id"] = f"m{i}"
+        cats.setdefault(m["category"], {}).setdefault(m.get("group", ""), []).append(m)
+    findings, tech, opinion = [], {}, {}
+    for d in days:
+        for x in d.get("findings") or ([d["summary"]] if d.get("summary") else []):
+            if x not in findings:
+                findings.append(x)
+        for t in d.get("tech", []):
+            cur = tech.setdefault(t["tech"], {"tech": t["tech"], "companies": [], "review": t["review"]})
+            cur["companies"] += [x for x in t["companies"] if x not in cur["companies"]]
+        for o in d.get("opinion", []):
+            cur = opinion.setdefault(o["category"], {"category": o["category"], "bullets": []})
+            cur["bullets"] += [x for x in o["bullets"] if x not in cur["bullets"]]
+    return {"categories": [{"category": k, "groups": [{"group": g, "companies": [{kk: vv for kk, vv in c.items() if kk != "key"} for c in cs]} for g, cs in v.items()]} for k, v in cats.items()],
+            "findings": findings, "tech": list(tech.values()), "opinion": list(opinion.values())}
 
 
 def build_final(store: Store, tid: str) -> dict:
@@ -142,16 +226,18 @@ def build_final(store: Store, tid: str) -> dict:
     visited = {i for i, m in merged.items() if any(x for x in m["visits"])}
     not_visited = list(dict.fromkeys(c["name"] for c in _plan(store, tid) if booths.base_id(c["id"]) not in visited))
     final = daily._read(store._dir(tid) / "final.json", {})
+    mc = _merge_categories(days)
+    flat = [c for ct in mc["categories"] for g in ct["groups"] for c in g["companies"]]  # 수정본이 있는 날은 수정본에 남긴 업체만 센다
     return {
         "tripName": trip["name"], "venue": trip.get("venue", ""), "purpose": trip.get("purpose", ""), "dates": trip["days"],
-        "days": days, "companies": sorted(merged.values(), key=lambda m: (m["category"], m["name"])),
+        "days": days, "companies": sorted(merged.values(), key=lambda m: (m["category"], m["name"])), **mc,
         "travel": _travel(store, tid, trip),
         "ppt": pptdata.load(store, tid),
         "sessions": _attended(days),
         "notVisited": not_visited, "checks": [dict(x, day=d["day"]) for d in days for x in d["checks"]],
         "final": {"overview": final.get("overview", ""), "highlights": final.get("highlights", []), "followups": final.get("followups", [])},
         "totals": {k: sum(d["stats"].get(k, 0) for d in days) for k in ("recordings", "memos", "photos", "audioSeconds")}
-        | {"companies": len(merged), "newCompanies": sum(1 for m in merged.values() if m["addedOnSite"]), "days": len(days)},
+        | {"companies": len(flat), "newCompanies": sum(1 for c in flat if c.get("addedOnSite")), "days": len(days)},
     }
 
 
@@ -298,7 +384,73 @@ def session_lines(r: dict) -> list[str]:
             for x in r.get("sessions", [])]
 
 
-def final_markdown(r: dict) -> str:
+def _research_md(r: dict, photos: dict | None = None) -> list[str]:
+    """최종 보고서 본문: 일자 구분 없이 분류별로. 주요 조사 내용 → 업체 현황 → 분류별 업체(개조식, 사진 3열) → 기술별 표 → 종합 의견."""
+    cats = r["categories"]
+    comps = [c for ct in cats for g in ct["groups"] for c in g["companies"]]
+    L: list[str] = []
+    n = 0
+    if r["findings"]:
+        n += 1
+        L += [f"## {n}. 주요 조사 내용", "", *[f"- {x}" for x in r["findings"]], ""]
+    n += 1
+    L += [f"## {n}. 방문 업체 현황", "", "| 구분 | 주요 업체 | 업체 수 |", "|---|---|---:|"]
+    L += [f"| {ct['category']} | {', '.join(c['name'] for g in ct['groups'] for c in g['companies'])} | {sum(len(g['companies']) for g in ct['groups'])} |" for ct in cats]
+    L += [f"| **합계** | | **{len(comps)}** |", ""]
+    for ct in cats:
+        n += 1
+        L += [f"## {n}. {ct['category']}", ""]
+        k = 0
+        for g in ct["groups"]:
+            if g["group"]:
+                k += 1
+                L += [f"### {n}.{k}. {g['group']}", ""]
+            for c in g["companies"]:
+                tag = " (현장 추가)" if c.get("addedOnSite") else ""
+                L += [f"{'####' if g['group'] else '###'} ■ {c['name']}{tag}", "", *[f"- {x}" for x in c["points"]]]
+                if c.get("memos"):
+                    L += ["", "**내 메모 (원문)**", "", *[f"> {x}" for x in c["memos"]]]
+                if c["photos"]:
+                    L += _photo_table(c["name"], (photos or {}).get(c["id"], []), len(c["photos"]))
+                else:
+                    L.append("")
+    if r["tech"]:
+        n += 1
+        L += [f"## {n}. 주요 기술별 조사 결과", "", "| 조사 기술 | 관련 업체 | 주요 검토 사항 |", "|---|---|---|"]
+        L += [f"| {t['tech']} | {', '.join(t['companies'])} | {t['review']} |" for t in r["tech"]] + [""]
+    if r["opinion"]:
+        n += 1
+        L += [f"## {n}. 종합 의견", ""]
+        for k, o in enumerate(r["opinion"], 1):
+            L += [f"### {n}.{k}. {o['category']}", "", *[f"- {b}" for b in o["bullets"]], ""]
+    return L
+
+
+def final_md_zip(store: Store, tid: str, r: dict) -> bytes:
+    """최종 보고서 Markdown 과 사진(분류별 업체 아래 한 줄 3개)을 ZIP 으로 묶는다. 수정본에 넣어 둔 사진은 그 파일을 쓴다."""
+    import zipfile
+    photos: dict[str, list[str]] = {}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
+        used: set[str] = set()
+        for ct in r["categories"]:
+            for g in ct["groups"]:
+                for c in g["companies"]:
+                    for ph in c["photos"]:
+                        rel = str(ph["src"])
+                        src = daily.day_dir(store, tid, ph["day"]) / rel
+                        if ".." in rel or not src.is_file():
+                            continue
+                        arc = f"photos/day{ph['day']}_{src.name}"
+                        if arc not in used:
+                            used.add(arc)
+                            z.write(src, arc)
+                        photos.setdefault(c["id"], []).append(arc)
+        z.writestr("최종보고서.md", final_markdown(r, photos).encode("utf-8"))
+    return buf.getvalue()
+
+
+def final_markdown(r: dict, photos: dict | None = None) -> str:
     t = r["totals"]
     L = [f"# {r['tripName']} 출장 최종 보고서", f"{r['dates'][0]} ~ {r['dates'][-1]} · {r['venue']}".strip(" ·"), ""]
     if r["purpose"]:
@@ -317,19 +469,7 @@ def final_markdown(r: dict) -> str:
         L += ["## 주요 발견", *[f"- {x}" for x in f["highlights"]], ""]
     if f["followups"]:
         L += ["## 후속 조치", *[f"- {x}" for x in f["followups"]], ""]
-    L.append("## 일자별 요약")
-    for d in r["days"]:
-        L += [f"### {d['day']}일차 · {d['date']}", d["summary"], ""]
-    L.append("## 업체별 정리")
-    for c in r["companies"]:
-        L.append(f"### {c['name']} · {c['category']}")
-        for v in c["visits"]:
-            L.append(f"**{v['day']}일차**")
-            for p in v["points"]:
-                L.append(f"- {p}")
-            for m in v["memos"]:
-                L.append(f"> 메모: {m['text']}")
-        L.append("")
+    L += _research_md(r, photos)
     if r["notVisited"]:
         L += ["## 방문하지 못한 계획 업체", ", ".join(r["notVisited"]), ""]
     return "\n".join(L)
@@ -449,19 +589,36 @@ def final_docx(store: Store, tid: str, r: dict) -> bytes:
             d.add_heading(title, 1)
             for x in items:
                 _marked(d.add_paragraph(style="List Bullet"), x)
-    d.add_heading("일자별 요약", 1)
-    for day in r["days"]:
-        d.add_heading(f"{day['day']}일차 · {day['date']}", 2)
-        _marked(d.add_paragraph(), day["summary"])
-    d.add_heading("업체별 정리", 1)
-    for c in r["companies"]:
-        d.add_heading(f"{c['name']} · {c['category']}", 2)
-        for v in c["visits"]:
-            d.add_paragraph().add_run(f"{v['day']}일차").bold = True
-            for p in v["points"]:
-                _marked(d.add_paragraph(style="List Bullet"), p)
-            for m in v["memos"]:
-                d.add_paragraph("메모: " + m["text"], style="Intense Quote")
+    n = 0
+    if r["findings"]:
+        n += 1
+        d.add_heading(f"{n}. 주요 조사 내용", 1)
+        for x in r["findings"]:
+            _marked(d.add_paragraph(style="List Bullet"), x)
+    for ct in r["categories"]:
+        n += 1
+        d.add_heading(f"{n}. {ct['category']}", 1)
+        for g in ct["groups"]:
+            if g["group"]:
+                d.add_heading(g["group"], 2)
+            for c in g["companies"]:
+                d.add_heading(f"■ {c['name']}" + (" (현장 추가)" if c.get("addedOnSite") else ""), 3 if g["group"] else 2)
+                for p in c["points"]:
+                    _marked(d.add_paragraph(style="List Bullet"), p)
+                for m in c.get("memos", []):
+                    d.add_paragraph("메모: " + m, style="Intense Quote")
+    if r["tech"]:
+        n += 1
+        d.add_heading(f"{n}. 주요 기술별 조사 결과", 1)
+        for t in r["tech"]:
+            d.add_paragraph(f"{t['tech']} — {', '.join(t['companies'])}: {t['review']}", style="List Bullet")
+    if r["opinion"]:
+        n += 1
+        d.add_heading(f"{n}. 종합 의견", 1)
+        for o in r["opinion"]:
+            d.add_heading(o["category"], 2)
+            for b in o["bullets"]:
+                d.add_paragraph(b, style="List Bullet")
     if r["notVisited"]:
         d.add_heading("방문하지 못한 계획 업체", 1)
         d.add_paragraph(", ".join(r["notVisited"]))

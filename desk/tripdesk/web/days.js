@@ -305,17 +305,21 @@ export async function finalView(root, tid, app) {
       h("button", { class: "btn", onclick: openPpt }, "AI 정리 프롬프트"), h("button", { class: "btn", onclick: editBasic }, "기본 정보·업체 수준 입력")));
   root.replaceChildren(
     h("div", { class: "top" }, h("div", { class: "row", style: "gap:14px" }, h("h1", {}, "최종 보고서"), h("span", { class: "pill" }, `${r.dates[0]} ~ ${r.dates[r.dates.length - 1]}`)),
-      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => download(`/trips/${tid}/final.docx`) }, "Word 로 저장"), h("button", { class: "btn", onclick: () => download(`/trips/${tid}/final.md`) }, "Markdown"))),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => download(`/trips/${tid}/final.docx`) }, "Word 로 저장"), h("button", { class: "btn", onclick: () => download(`/trips/${tid}/final-md.zip`) }, "Markdown + 사진"))),
     h("div", { class: "kpis" }, kpi("가져온 일차", `${t.days}/${r.dates.length}`, "일간 데이터"), kpi("방문 업체", t.companies, t.newCompanies ? `현장 추가 ${t.newCompanies}곳` : "계획대로", true),
       kpi("녹음", t.recordings, fmtHours(t.audioSeconds)), kpi("메모", t.memos, "원문 그대로 수록"), kpi("사진", t.photos, "일간 Word 에 포함")),
     sec("총평", f.overview ? h("div", { style: "line-height:1.7;white-space:pre-wrap" }, marked(f.overview)) : h("div", { class: "msg" }, "아직 총평이 없어요. 'AI 총평 프롬프트'로 만들거나 직접 쓸 수 있어요."),
       f.highlights.length ? h("div", {}, h("h4", {}, "주요 발견"), list(f.highlights)) : null, f.followups.length ? h("div", {}, h("h4", {}, "후속 조치"), list(f.followups)) : null,
       h("div", { class: "row" }, h("button", { class: "btn primary", onclick: openPrompt }, "AI 총평 프롬프트"), h("button", { class: "btn", onclick: editFinal }, "직접 쓰기/수정"))),
     pptCard,
-    sec("일자별 요약", ...r.days.map((d) => h("div", {}, h("div", { class: "row", style: "justify-content:space-between" }, h("h4", { style: "color:var(--ink)" }, `${d.day}일차 · ${fmtDate(d.date)}`), h("a", { class: "btn sm ghost", href: `#/daily/${tid}/${d.day}` }, "일간 보고서 →")), h("div", { style: "line-height:1.6" }, marked(d.summary))))),
-    sec(`업체별 정리 (${r.companies.length}곳)`, ...r.companies.map((c) => h("div", { style: "border-top:1px solid var(--line2);padding-top:10px" },
-      h("h4", { style: "color:var(--ink);font-size:14px" }, c.name, h("span", { class: "sub" }, ` · ${c.category || "기타"}`), c.addedOnSite ? h("span", { class: "tag" }, "현장 추가") : null),
-      ...c.visits.map((v) => h("div", {}, h("div", { class: "sub", style: "font-weight:800" }, `${v.day}일차`), list(v.points), ...v.memos.map((m) => h("div", { class: "box memo", style: "margin-top:4px" }, "메모: " + m.text))))))),
+    r.findings.length ? sec("주요 조사 내용", list(r.findings)) : null,
+    ...r.categories.map((ct) => sec(`${ct.category} (${ct.groups.reduce((a, g) => a + g.companies.length, 0)}곳)`, ...ct.groups.map((g) => h("div", {},
+      g.group ? h("h4", { style: "color:var(--ink)" }, g.group) : null,
+      ...g.companies.map((c) => h("div", { style: "border-top:1px solid var(--line2);padding-top:10px" },
+        h("h4", { style: "color:var(--ink);font-size:14px" }, "■ " + c.name, c.addedOnSite ? h("span", { class: "tag" }, "현장 추가") : null, c.photos.length ? h("span", { class: "sub" }, `  사진 ${c.photos.length}장`) : null),
+        list(c.points), ...(c.memos || []).map((m) => h("div", { class: "box memo", style: "margin-top:4px" }, "메모: " + m)))))))),
+    r.tech.length ? sec("주요 기술별 조사 결과", h("table", {}, h("tr", {}, h("th", {}, "조사 기술"), h("th", {}, "관련 업체"), h("th", {}, "주요 검토 사항")), ...r.tech.map((t) => h("tr", {}, h("td", {}, t.tech), h("td", {}, t.companies.join(", ")), h("td", {}, t.review))))) : null,
+    r.opinion.length ? sec("종합 의견", ...r.opinion.map((o) => h("div", {}, h("h4", { style: "color:var(--ink)" }, o.category), list(o.bullets)))) : null,
     r.notVisited.length ? sec("방문하지 못한 계획 업체", h("div", {}, r.notVisited.join(", "))) : null,
   );
 }
