@@ -56,6 +56,7 @@ Tasks, for every RECORDING below:
    - "category": judge from the CONTENT of the conversation (not just the category label I typed) which broad technology/business area the company belongs to, e.g. "Vision & Sensor", "Teach Pendant & HMI", "Digital Twin & OLP", "Industrial PC & Control", "Robotics & Welding". Use the SAME category name for companies of the same area, so the report can group them.
    - "group": optional finer sub-group inside the category (e.g. "Laser Profile & Seam Sensing", "3D Vision & AI"); "" if not needed.
 3. Across the day: "findings" = 3-6 Korean bullets of the main things investigated today (the purpose of the visits, in 개조식); "tech" = rows of the technologies investigated: {{"tech":"","companies":["short names"],"review":"what to examine"}}; "opinion" = per category 1-4 Korean bullets of overall remarks drawn only from the conversations.
+Voice: write the bullets like a 20-year field engineer who also develops the control software: concrete specs first, then what it means for a shipyard welding line (what is different from conventional touch sensing / fixed sensors / wired pendants, what must be verified: arc, fume, spatter, weight, interface, price). No brochure tone. Do NOT start bullets with labels such as "면담:", "조사:", "현장:", "적용:". Keep what the company said separate from my own judgment by putting my judgment in a bullet that begins with "판단".
 Never add facts, numbers or names that are not in the transcript. Do not touch my memos.
 """
     prompts = []

@@ -387,8 +387,26 @@ def test_ppt_markdown_zip_and_keeps_after_final_edit(store, zpath):
     assert any(n.startswith("photos/day1_alpha") for n in names) and "![Alpha Robotics](photos/day1_alpha_1030_01.jpg)" in md
     assert "| 일정 | 장소 | 출장자 | 비고 |" in md and "홍길동 책임" in md and "| 휴머노이드 | Alpha Robotics | 2 | 하중 검증 필요 |" in md
     assert "추가 확인 필요" in md and "### 시사점" in md and "※ 1: 단기 적용 가능" in md and "## [별첨] 업체별 자료" in md
+    assert "## 카테고리별 상세" in md and "## 후속 추진 방향" in md
     with pytest.raises(Exception):
         pptdata.apply_reply("```json\n{}\n```", store, t["id"], set(), {})
+
+
+def test_ppt_tiers_labels_and_followups(store, zpath):
+    from tripdesk import pptdata
+    t = prep(store, zpath)
+    fr = reports.build_final(store, t["id"])
+    big = {"id": "x1", "name": "Big", "category": "Vision", "hall": "", "booth": "", "addedOnSite": False,
+           "visits": [{"points": ["a"] * 6, "memos": [], "recordings": [1, 2], "photos": 3}]}
+    mid = [{"id": f"m{i}", "name": f"Mid{i}", "category": "Vision", "hall": "", "booth": "", "addedOnSite": False,
+            "visits": [{"points": ["p"], "memos": [], "recordings": [1], "photos": 1}]} for i in range(3)]
+    none = {"id": "z", "name": "Zero", "category": "Vision", "hall": "", "booth": "", "addedOnSite": False, "visits": []}
+    tr = pptdata.tiers({"companies": [big, *mid, none]}, pptdata.empty())
+    assert [c["name"] for c in tr[0]["core"]] == ["Big"] and [len(p) for p in tr[0]["brief"]] == [2, 1] and tr[0]["thin"][0]["name"] == "Zero"
+    assert pptdata._s("면담: 정확도 5mm\n조사: 가격 미정") == "정확도 5mm 가격 미정"
+    out = pptdata.save(store, t["id"], {"followups": [{"term": "장기", "title": "교육"}, {"term": "x", "title": "비교 시험"}]})
+    assert [f["term"] for f in out["followups"]] == ["장기", "중기"]
+    assert "20-year field engineer" in pptdata.build_prompt(store.get_trip(t["id"]), fr) and "tier=" in pptdata.build_prompt(store.get_trip(t["id"]), fr)
 
 
 def test_final_lists_sessions_attended_on_phone(store, zpath):

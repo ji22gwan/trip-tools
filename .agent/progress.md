@@ -1,0 +1,28 @@
+# 진행 기록
+- 시도: 예상 질문을 출장 공통 탭(ques)으로 이동, 패키지에서 모든 업체에 합침, 일정/항공/식사 탭에서도 좌측 출장정보 유지
+- 결과: node --test, worker test, node --check, pytest 52 passed 통과. scripts_test.sh 는 수정 전에도 exit 1 (원인 미조사)
+- 다음: 실제 화면 확인, scripts_test.sh exit 1 원인 확인
+- 시도: 폰 앱 현장 추가 업체 수정·업체 삭제(녹음/메모/사진 포함)·리스트 업체명 검색, 식사 카드 줄바꿈, 번역 캐시, 음성 입력 정리
+- 결과: npm test 의 node/worker/pytest 통과(scripts_test.sh 는 기존부터 exit 1), 폰 화면 확인은 NOT RUN, Pages 배포 tf-v29
+- 다음: 폰에서 수정/삭제/검색 동작 확인, scripts_test.sh exit 1 원인 확인
+- 시도: 일간 보고서 하단 "오늘 미흡한 부분" 입력칸 + 보고서(MD/Word) 포함 + 패키지로 폰 앱 리스트에 표시, Markdown+사진 ZIP
+- 결과: npm test node/worker/pytest(53) 통과, scripts_test.sh 는 기존부터 exit 1, 화면 동작 NOT RUN, Pages tf-v30 배포
+- 다음: Desk 에서 저장→패키지 재전송→폰에서 확인
+- 시도: 일간 AI 교정/요약 프롬프트를 SPS2026 최종본 형식(내용 판단 분류, 개조식, 사진 3열 표, 기술별 표, 종합 의견)에 맞춤
+- 결과: npm test node/worker/pytest 통과(scripts_test.sh 는 기존부터 exit 1), 실제 AI 답변으로 생성한 결과는 NOT RUN
+- 다음: Desk 에서 AI 교정·요약으로 한 번 돌려 최종본과 비교
+- 시도: Desk 일간 보고서에 외부 수정본(.md+photos ZIP) 업로드·저장·되돌리기, Markdown+사진 내려받기가 수정본을 줌
+- 결과: npm test node/worker/pytest 통과(scripts_test.sh 는 기존부터 exit 1), 실제 화면·HTTP 업로드는 NOT RUN
+- 다음: 수정한 ZIP 으로 실제 업로드해 보기
+- 시도: 최종 보고서(MD/Word/PPT용/AI 프롬프트)가 일간 수정본(.md) 내용을 기준으로 하도록 build_final 에서 요약·업체별 개조식을 대체
+- 결과: npm test node/worker/pytest(56) 통과(scripts_test.sh 는 기존부터 exit 1), 실제 최종 보고서 화면은 NOT RUN
+- 다음: 수정본 올린 일차로 최종 보고서 미리보기 확인
+- 시도: 수정본을 올린 일차를 PDF(사진 축소, 크롬 헤드리스)로 만들어 패키지에 넣고 폰 앱 리스트에서 보기(reports 저장소, DB v3)
+- 결과: npm test node/worker/pytest(57) 통과(scripts_test.sh 는 기존부터 exit 1), 실제 크롬 변환은 샘플로 확인(14초, 0.78MB), 폰 화면 NOT RUN, Pages tf-v31
+- 다음: Desk 에서 패키지 보내고 폰에서 보고서 PDF 열어 보기
+- 시도: 최종 보고서를 일자 구분 없이 카테고리별로 재구성(수정본이 있는 일차는 수정본의 분류·그룹·업체·개조식·메모·사진·표·종합의견을 직접 사용), Markdown+사진 ZIP 추가, Word·화면 반영
+- 결과: npm test node/worker/pytest(58) 통과(scripts_test.sh 는 기존부터 exit 1), 실제 데이터로 구조 확인(읽기 전용), 화면 NOT RUN
+- 다음: 2·3일차도 수정본 올린 뒤 최종 보고서 확인, PPT용 자료와의 관계 점검
+- 시도: PPT용 자료에 핵심/비교 업체 판정(info_score·tiers), 현장 엔지니어 문체·웹 보완 규칙 프롬프트, 카테고리별 슬라이드 구성·후속 추진(단기/중기/장기), 구분어 제거; 일간 프롬프트에 같은 문체 규칙
+- 결과: pytest 58 통과, node 테스트 위 결과, 실제 AI 답변·PPT 생성은 NOT RUN
+- 다음: 실제 데이터로 프롬프트를 AI에 넣어 결과 비교, 임계값(CORE_MIN) 조정

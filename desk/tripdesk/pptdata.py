@@ -14,8 +14,17 @@ LEVELS = {1: "단기 적용 가능", 2: "추가 검증 필요", 3: "중·장기 
 FAIR_KEYS = (("name", "명칭"), ("summary", "개요"), ("scale", "규모"), ("halls", "전시관 구성 및 주제"), ("slogan", "슬로건"))
 
 
+LABEL = re.compile(r"(^|\n)\s*(면담|조사|현장|전시|적용|확인|시사점)\s*[:：]\s*")
+TERMS = {"단기": 1, "중기": 2, "장기": 3}
+
+
+def nolabel(x) -> str:
+    """'면담:', '조사:' 같은 구분어는 슬라이드에서 쓰지 않는다."""
+    return LABEL.sub(r"\1", str(x or ""))
+
+
 def _s(x, n=300) -> str:
-    return re.sub(r"\s+", " ", str(x or "")).strip()[:n]
+    return re.sub(r"\s+", " ", nolabel(x)).strip()[:n]
 
 
 def _lines(v, n=10) -> list[str]:
@@ -34,7 +43,7 @@ def _blocks(v, n=6) -> list[dict]:
 
 def empty() -> dict:
     return {"attendees": "", "remark": "", "fair": {k: [] if k in ("summary", "scale", "halls", "slogan") else "" for k, _ in FAIR_KEYS},
-            "insights": [], "conclusions": [], "companies": {}}
+            "insights": [], "conclusions": [], "followups": [], "companies": {}}
 
 
 def clean(d: dict, base: dict | None = None) -> dict:
@@ -50,12 +59,23 @@ def clean(d: dict, base: dict | None = None) -> dict:
     for k, n in (("insights", 4), ("conclusions", 3)):
         if k in d:
             out[k] = _blocks(d[k], n)
+    if "followups" in d:
+        out["followups"] = [{"term": _s(f.get("term"), 4) if _s(f.get("term"), 4) in TERMS else "중기", "title": _s(f.get("title"), 80), "detail": _s(f.get("detail"), 240)}
+                            for f in d["followups"] or [] if isinstance(f, dict) and _s(f.get("title"), 80)][:6]
     if isinstance(d.get("companies"), (dict, list)):
         items = d["companies"].items() if isinstance(d["companies"], dict) else [(c.get("id"), c) for c in d["companies"] if isinstance(c, dict)]
         for cid, c in items:
             if not cid or not isinstance(c, dict):
                 continue
-            cur = out["companies"].setdefault(str(cid), {"group": "", "level": None, "check": "", "usage": []})
+            cur = out["companies"].setdefault(str(cid), {"group": "", "level": None, "check": "", "usage": [], "summary": [], "apply": [], "diff": "", "sources": []})
+            for k in ("summary", "apply", "sources"):
+                cur.setdefault(k, [])
+            cur.setdefault("diff", "")
+            for k, n in (("summary", 4), ("apply", 3), ("sources", 4)):
+                if k in c:
+                    cur[k] = _lines(c[k], n)
+            if "diff" in c:
+                cur["diff"] = _s(c["diff"], 200)
             if "group" in c:
                 cur["group"] = _s(c["group"], 40)
             if "level" in c:
@@ -80,34 +100,105 @@ def save(store: Store, tid: str, patch: dict) -> dict:
     return raw["ppt"]
 
 
+# ---------------- 핵심 / 비교 업체 판정 ----------------
+# shortcut: 점수 기준은 경험값(말한 양 위주), 실제 데이터를 보며 조정한다.
+CORE_MIN = 12   # 이 점수 이상이면 핵심 업체 후보
+CORE_MAX = 2    # 카테고리당 핵심 업체 최대 수
+THIN_MAX = 3    # 이 점수 이하이면 자료 부족(웹 보완 대상)
+
+
+def info_score(c: dict) -> int:
+    """현장에서 얻은 정보량: 개조식 항목·메모·녹음·사진 수로 가늠한다."""
+    vs = c.get("visits", [])
+    pts = sum(1 for v in vs for p in v.get("points", []) if str(p).strip())
+    memo = sum(len(m.get("text", "")) for v in vs for m in v.get("memos", []))
+    recs = sum(len(v.get("recordings", [])) if isinstance(v.get("recordings"), list) else int(v.get("recordings") or 0) for v in vs)
+    ph = sum(v.get("photos", 0) if isinstance(v.get("photos"), int) else len(v.get("photos") or []) for v in vs)
+    return pts * 3 + min(memo, 600) // 40 + recs * 2 + min(ph, 6)
+
+
+def tiers(r: dict, ppt: dict) -> list[dict]:
+    """카테고리별로 [{category, core:[c], brief:[[c,c],...], thin:[c]}]. 핵심은 정보가 충분한 업체, 나머지는 2개씩 묶는다."""
+    cats: dict[str, list] = {}
+    for c in r["companies"]:
+        g = ppt["companies"].get(c["id"], {}).get("group") or c["category"] or "기타"
+        cats.setdefault(g, []).append((info_score(c), c))
+    out = []
+    for g, items in sorted(cats.items()):
+        items.sort(key=lambda x: (-x[0], x[1]["name"]))
+        core = [c for sc, c in items if sc >= CORE_MIN][:CORE_MAX]
+        if not core and items and items[0][0] > THIN_MAX:
+            core = [items[0][1]]
+        ids = {c["id"] for c in core}
+        rest = [c for _, c in items if c["id"] not in ids]
+        brief = [c for c in rest if info_score(c) > 0]
+        thin = [c for c in rest if info_score(c) == 0]
+        out.append({"category": g, "core": core, "brief": [brief[i:i + 2] for i in range(0, len(brief), 2)], "thin": thin})
+    return out
+
+
 # ---------------- AI 프롬프트 / 답변 ----------------
+VOICE = """Voice and viewpoint (very important):
+- Write as a 20-year field engineer who also writes the control software, reporting to colleagues who build shipyard welding robots. Plain, specific, a little skeptical. Never sound like a brochure or an AI summary.
+- For every company say what it would take to use it on our line (interface, SDK, I/O, calibration, cycle time, arc/fume/spatter, weight, price, lead time) and what is DIFFERENT from the technology we already know (e.g. contact touch sensing, a fixed-position laser line sensor, teach-pendant wired keys). If there is no real difference, say so honestly.
+- Prefer measurable facts from the interview. Mark anything not confirmed as "검증 필요". Never invent numbers, models, prices, customers or certifications.
+- Korean 개조식 (noun-ending short phrases). Do NOT start lines with labels such as "면담:", "조사:", "현장:", "전시:", "적용:"."""
+
+WEB = """Gaps: when a company has little or no interview material (tier = thin, or a field you cannot fill), search the web. Prefer first-hand visit reports (blogs, Instagram, LinkedIn posts, YouTube by people who actually attended SPS 2026 or the same booth), then the maker's own datasheet. Put every URL you used in "sources" and prefix such lines with "(웹)" so I can tell them from what was said at the booth. Never mix web facts into interview facts without the "(웹)" mark."""
+
+
+def _line(c: dict, d_pts: list[str], d_memos: list[dict], sc: int, tier: str) -> list[str]:
+    pts = " / ".join(d_pts) or "(no AI points)"
+    L = [f"- id={c['id']} | {c['name']} [{c['category']}] hall {c['hall']} {c['booth']} | info={sc} tier={tier}: {pts}"]
+    L += [f"    my memo: {m['text']}" for m in d_memos]
+    return L
+
+
 def build_prompt(trip: dict, report: dict) -> str:
+    from . import booths
+
+    ppt = report.get("ppt") or empty()
+    tier_of: dict[str, tuple[str, int]] = {}
+    for t in tiers(report, ppt):
+        for c in t["core"]:
+            tier_of[c["id"]] = ("core", info_score(c))
+        for pair in t["brief"]:
+            for c in pair:
+                tier_of[c["id"]] = ("brief", info_score(c))
+        for c in t["thin"]:
+            tier_of[c["id"]] = ("thin", 0)
     L = []
     for d in report["days"]:
         L.append(f"## Day {d['day']} ({d['date']})\nSummary: {d['summary']}")
         for c in d["companies"]:
-            pts = " / ".join(c["points"]) or "(no AI points)"
-            L.append(f"- id={c['id']} | {c['name']} [{c['category']}] hall {c['hall']} {c['booth']}: {pts}")
-            for m in c["memos"]:
-                L.append(f"    my memo: {m['text']}")
+            tr, sc = tier_of.get(booths.base_id(c["id"]), ("brief", 0))
+            L += _line(c, c["points"], c["memos"], sc, tr)
     return f"""I visited the trade fair "{trip['name']}" ({trip['days'][0]} ~ {trip['days'][-1]}, {trip.get('venue') or 'venue unknown'}).
 Purpose (Korean): {trip.get('purpose') or '(not given)'}
-Below are my daily summaries and per-company notes. Using ONLY this material (you may use web search for the fair's own overview), organize them for an internal Korean trip report that will become a PowerPoint deck.
+Below are my daily summaries and per-company notes (already corrected by me day by day). Using this material first, organize them for an internal Korean trip report that will become a PowerPoint deck.
 
 {chr(10).join(L)}
 
+Deck structure I want: fair overview -> company table by category -> per category: core companies get a full page each (big key photo), the other companies are paired two per page -> overall implications -> follow-up plan (short / mid / long term).
+Tiers: core = plenty of interview material, put in front. brief = shown two per page. thin = hardly any material, keep it to one line unless you can fill it from the web.
+
+{VOICE}
+
+{WEB}
+
 Rules:
-- Do not invent numbers, prices, customers, certifications or performance. If something is not in the material, write "{NEED}".
-- Write in short Korean noun-ending phrases (개조식). No promotional wording: restate from a shipyard (production automation) point of view.
-- For every company include at least one limitation or item to verify.
+- Do not invent numbers, prices, customers, certifications or performance. If something is not in the material (or the web), write "{NEED}".
+- Restate from a shipyard (production automation) point of view, not the vendor's promotion.
+- Every company needs at least one limitation or item to verify.
 - Levels: 1 = short-term applicable, 2 = needs more verification, 3 = mid/long-term.
 
 Reply with ONLY one JSON object in a ```json code block:
 {{"fair":{{"name":"official fair name","summary":["1-2 lines"],"scale":["exhibitors / visitors, only if confirmed"],"halls":["hall/theme composition"],"slogan":["slogan"]}},
-"companies":[{{"id":"copy the id above","group":"category group e.g. 용접로봇","level":1,"check":"1-2 Korean sentences: what was confirmed, from a shipyard view","usage":[{{"title":"short heading","points":["bullet","bullet"]}}]}}],
+"companies":[{{"id":"copy the id above","group":"category group e.g. Vision & Sensor","level":1,"check":"1-2 Korean sentences: what was confirmed, from a shipyard view","summary":["core/brief: 2-3 fact bullets of what the product is and how it works"],"apply":["1-3 bullets: what it takes to use it on our line, and what to verify first"],"diff":"one sentence: what is different from the technology we already use (or 'no real difference')","sources":["urls used, only for web material"],"usage":[{{"title":"short heading","points":["bullet"]}}]}}],
 "insights":[{{"title":"short heading","points":["2-3 bullets"]}}],
-"conclusions":[{{"title":"short heading","points":["1-3 bullets"]}}]}}
-Use exactly 4 insights (e.g. trend change / AI·technology / company trend / shipyard task) and exactly 3 conclusions. At most 3 usage headings per company."""
+"conclusions":[{{"title":"short heading","points":["1-3 bullets"]}}],
+"followups":[{{"term":"단기 or 중기 or 장기","title":"task","detail":"what to compare/measure and with which companies"}}]}}
+Use exactly 4 insights (e.g. trend change / AI·technology / company trend / shipyard task), exactly 3 conclusions, and 3-4 followups (at least one per term). At most 3 usage headings per company."""
 
 
 def apply_reply(text: str, store: Store, tid: str, known: set[str], names: dict[str, str]) -> dict:
@@ -121,7 +212,7 @@ def apply_reply(text: str, store: Store, tid: str, known: set[str], names: dict[
         if cid:
             comps.append({**c, "id": cid})
     patch = {"companies": comps}
-    for k in ("fair", "insights", "conclusions"):
+    for k in ("fair", "insights", "conclusions", "followups"):
         if d.get(k):
             patch[k] = d[k]
     if not (comps or d.get("insights") or d.get("conclusions") or d.get("fair")):
@@ -136,6 +227,30 @@ def _bul(items, ind=""):
 
 def _cell(s) -> str:
     return (s or "").replace("|", "/").replace("\n", " ") or NEED
+
+
+def _page(c: dict, ppt: dict, photos: dict, big: bool) -> list[str]:
+    """핵심 업체는 대표 사진을 크게 + 나머지 작게, 비교 업체는 중요 사진 2장."""
+    from .reports import plain
+
+    pc = ppt["companies"].get(c["id"], {})
+    ph = photos.get(c["id"], [])
+    pts = [plain(p) for v in c["visits"] for p in v["points"]]
+    L = ["", f"**{c['name']}**" + (f" – {pc['check']}" if pc.get("check") else "")]
+    if ph:
+        L.append("사진(대표·크게): " + f"![{c['name']}]({ph[0]})")
+        rest = ph[1:4] if big else ph[1:2]
+        if rest:
+            L.append("사진(보조·작게): " + " ".join(f"![{c['name']}]({x})" for x in rest))
+    L.append("기술 요약")
+    L += _bul(pc.get("summary") or pts[:3] or [NEED])
+    if pc.get("diff"):
+        L.append(f"- 기존 대비 차이: {pc['diff']}")
+    L.append("당사 적용 및 시사점")
+    L += _bul(pc.get("apply") or [NEED])
+    if pc.get("sources"):
+        L.append("출처: " + ", ".join(pc["sources"]))
+    return L
 
 
 def build_markdown(r: dict, ppt: dict, photos: dict[str, list[str]]) -> str:
@@ -178,6 +293,22 @@ def build_markdown(r: dict, ppt: dict, photos: dict[str, list[str]]) -> str:
         L += [f"#### {i}. {b['title']}"] + _bul(b["points"])
     if not ppt["conclusions"]:
         L.append(f"- {NEED}")
+    L += ["", "## 카테고리별 상세 (슬라이드 구성)"]
+    for t in tiers(r, ppt):
+        L += ["", f"### {t['category']}"]
+        for c in t["core"]:
+            L += _page(c, ppt, photos, big=True)
+        for pair in t["brief"]:
+            L += ["", "#### [비교] 1페이지에 2개 업체"]
+            for c in pair:
+                L += _page(c, ppt, photos, big=False)
+        if t["thin"]:
+            L += ["", "- 현장 자료 부족(표에만 표기): " + ", ".join(c["name"] for c in t["thin"])]
+    L += ["", "## 후속 추진 방향"]
+    for f in sorted(ppt.get("followups", []), key=lambda x: TERMS.get(x["term"], 2)):
+        L.append(f"- **{f['term']}** {f['title']}" + (f": {f['detail']}" if f["detail"] else ""))
+    if not ppt.get("followups"):
+        L.append(f"- {NEED}")
     L += ["", "---", "", "## [별첨] 업체별 자료"]
     n = 0
     for c in r["companies"]:
@@ -192,7 +323,7 @@ def build_markdown(r: dict, ppt: dict, photos: dict[str, list[str]]) -> str:
         any_pt = False
         for v in c["visits"]:
             for p in v["points"]:
-                L.append(f"- {plain(p)}")
+                L.append(f"- {nolabel(plain(p))}")
                 any_pt = True
         if not any_pt:
             L.append(f"- {NEED}")
