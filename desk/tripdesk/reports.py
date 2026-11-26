@@ -222,23 +222,27 @@ def build_final(store: Store, tid: str) -> dict:
                 m["hall"] = ", ".join(dict.fromkeys(x for x in (m["hall"] + ", " + c["hall"]).split(", ") if x))
                 m["booth"] = ", ".join(x for x in (m["booth"], c["booth"]) if x)
             m["visits"].append({"day": d["day"], "date": d["date"], "points": c["points"], "memos": c["memos"],
-                                "recordings": c["recordings"], "photos": len(c["photos"])})
+                                "recordings": c["recordings"], "photos": len(c["photos"]),
+                                "photoFiles": [{"day": d["day"], "file": x} for x in (ph.get("file") or ph.get("src") or "" for ph in c["photos"]) if x]})
     visited = {i for i, m in merged.items() if any(x for x in m["visits"])}
     not_visited = list(dict.fromkeys(c["name"] for c in _plan(store, tid) if booths.base_id(c["id"]) not in visited))
     final = daily._read(store._dir(tid) / "final.json", {})
     mc = _merge_categories(days)
     flat = [c for ct in mc["categories"] for g in ct["groups"] for c in g["companies"]]  # 수정본이 있는 날은 수정본에 남긴 업체만 센다
-    return {
+    out = {
         "tripName": trip["name"], "venue": trip.get("venue", ""), "purpose": trip.get("purpose", ""), "dates": trip["days"],
         "days": days, "companies": sorted(merged.values(), key=lambda m: (m["category"], m["name"])), **mc,
         "travel": _travel(store, tid, trip),
         "ppt": pptdata.load(store, tid),
+        "tiers": {},
         "sessions": _attended(days),
         "notVisited": not_visited, "checks": [dict(x, day=d["day"]) for d in days for x in d["checks"]],
         "final": {"overview": final.get("overview", ""), "highlights": final.get("highlights", []), "followups": final.get("followups", [])},
         "totals": {k: sum(d["stats"].get(k, 0) for d in days) for k in ("recordings", "memos", "photos", "audioSeconds")}
         | {"companies": len(flat), "newCompanies": sum(1 for c in flat if c.get("addedOnSite")), "days": len(days)},
     }
+    out["tiers"] = pptdata.tier_map(out, out["ppt"])  # 편집기에 '자동 판정' 으로 보여 준다
+    return out
 
 
 def _travel(store: Store, tid: str, trip: dict) -> dict:

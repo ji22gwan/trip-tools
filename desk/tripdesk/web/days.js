@@ -1,4 +1,5 @@
 import { h, api, toast, guard, modal, promptModal, download, marked, fmtDur, fmtDate } from "./core.js";
+import { openReportEditor } from "./editor.js";
 
 const kpi = (label, val, note, accent) => h("div", { class: "kpi" + (accent ? " accent" : "") }, h("span", {}, label), h("b", {}, val), h("em", {}, note));
 const fmtHours = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}시간 ${Math.round((s % 3600) / 60)}분` : `${Math.round(s / 60)}분`);
@@ -302,6 +303,7 @@ export async function finalView(root, tid, app) {
     h("div", { class: "sub", style: "line-height:1.6" }, "목적 · 일정/참석자 · 박람회 개요 · 주요 확인 사항 표 · 시사점/결론 · 업체별 별첨 순서의 Markdown 과 사진을 ZIP 으로 내려받아요. 이 파일과 PPT 요청 프롬프트를 AI 에게 주면 PPT 로 만들어 줘요."),
     missing.length ? h("div", { class: "msg warn" }, "비어 있는 항목: " + missing.join(", ") + " — 비어 있으면 Markdown 에 '추가 확인 필요'로 표시돼요.") : h("div", { class: "msg" }, "필요한 항목이 모두 채워졌어요."),
     h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => download(`/trips/${tid}/final-ppt.zip`) }, "PPT용 자료 내려받기 (Markdown + 사진)"),
+      h("button", { class: "btn primary", onclick: () => openReportEditor(root, tid, r, reload) }, "보고서 편집기 열기"),
       h("button", { class: "btn", onclick: openPpt }, "AI 정리 프롬프트"), h("button", { class: "btn", onclick: editBasic }, "기본 정보·업체 수준 입력")));
   root.replaceChildren(
     h("div", { class: "top" }, h("div", { class: "row", style: "gap:14px" }, h("h1", {}, "최종 보고서"), h("span", { class: "pill" }, `${r.dates[0]} ~ ${r.dates[r.dates.length - 1]}`)),

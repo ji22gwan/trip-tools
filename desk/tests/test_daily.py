@@ -421,3 +421,21 @@ def test_final_lists_sessions_attended_on_phone(store, zpath):
     fr = reports.build_final(store, t["id"])
     assert fr["sessions"][0]["title"] == "AI Panel"
     assert "참관한 세션" in reports.final_markdown(fr) and "10:30~11:15 · AI Panel (Stage 2 · 홀 3A)" in reports.final_markdown(fr)
+
+
+def test_ppt_editor_fields_override_tier_name_photos(store, zpath):
+    from tripdesk import pptdata
+    t = prep(store, zpath)
+    fr = reports.build_final(store, t["id"])
+    cid = fr["companies"][0]["id"]
+    other = fr["companies"][1]["id"]
+    assert set(fr["tiers"]) == {c["id"] for c in fr["companies"]}
+    out = pptdata.save(store, t["id"], {"companies": {cid: {"tier": "core", "short": "Alpha", "photos": [{"day": 1, "file": "photos/alpha_1030_01.jpg"}, {"day": 1, "file": "../x"}], "summary": ["요약1"], "apply": ["적용1"], "diff": "차이"},
+                                                       other: {"tier": "hide"}}})
+    assert out["companies"][cid]["photos"] == [{"day": 1, "file": "photos/alpha_1030_01.jpg"}] and out["companies"][other]["tier"] == "hide"
+    fr = reports.build_final(store, t["id"])
+    assert fr["tiers"][cid] == "core" and other not in fr["tiers"]
+    md = pptdata.build_markdown(fr, fr["ppt"], {})
+    assert "**Alpha**" in md and "요약1" in md and "기존 대비 차이: 차이" in md and "photos/day1_alpha_1030_01.jpg" in md
+    other_name = next(c["name"] for c in fr["companies"] if c["id"] == other)
+    assert other_name not in md

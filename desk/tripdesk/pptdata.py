@@ -5,7 +5,7 @@ import json
 import re
 import zipfile
 
-from . import daily
+from . import booths, daily
 from .research import ResearchError, extract_json, norm_name
 from .store import Store, StoreError
 
@@ -67,7 +67,17 @@ def clean(d: dict, base: dict | None = None) -> dict:
         for cid, c in items:
             if not cid or not isinstance(c, dict):
                 continue
-            cur = out["companies"].setdefault(str(cid), {"group": "", "level": None, "check": "", "usage": [], "summary": [], "apply": [], "diff": "", "sources": []})
+            cur = out["companies"].setdefault(str(cid), {"group": "", "level": None, "check": "", "usage": [], "summary": [], "apply": [], "diff": "", "sources": [], "tier": "", "short": "", "photos": []})
+            cur.setdefault("tier", "")
+            cur.setdefault("short", "")
+            cur.setdefault("photos", [])
+            if "tier" in c:
+                cur["tier"] = c["tier"] if c["tier"] in ("core", "brief", "hide") else ""
+            if "short" in c:
+                cur["short"] = _s(c["short"], 40)
+            if "photos" in c:
+                cur["photos"] = [{"day": int(x["day"]), "file": _s(x["file"], 200)} for x in c["photos"] or []
+                                 if isinstance(x, dict) and str(x.get("day", "")).isdigit() and _s(x.get("file")) and ".." not in str(x["file"])][:8]
             for k in ("summary", "apply", "sources"):
                 cur.setdefault(k, [])
             cur.setdefault("diff", "")
@@ -121,20 +131,48 @@ def tiers(r: dict, ppt: dict) -> list[dict]:
     """카테고리별로 [{category, core:[c], brief:[[c,c],...], thin:[c]}]. 핵심은 정보가 충분한 업체, 나머지는 2개씩 묶는다."""
     cats: dict[str, list] = {}
     for c in r["companies"]:
-        g = ppt["companies"].get(c["id"], {}).get("group") or c["category"] or "기타"
-        cats.setdefault(g, []).append((info_score(c), c))
+        pc = ppt["companies"].get(c["id"], {})
+        if pc.get("tier") == "hide":
+            continue
+        cats.setdefault(pc.get("group") or c["category"] or "기타", []).append((info_score(c) + (99 if pc.get("tier") == "core" else 0), c))
     out = []
     for g, items in sorted(cats.items()):
         items.sort(key=lambda x: (-x[0], x[1]["name"]))
-        core = [c for sc, c in items if sc >= CORE_MIN][:CORE_MAX]
-        if not core and items and items[0][0] > THIN_MAX:
+        pinned = [c for sc, c in items if ppt["companies"].get(c["id"], {}).get("tier") == "core"]
+        forced = {c["id"] for sc, c in items if ppt["companies"].get(c["id"], {}).get("tier") == "brief"}
+        auto = [c for sc, c in items if sc >= CORE_MIN and c["id"] not in forced and c not in pinned]
+        core = pinned + (auto[:CORE_MAX] if not pinned else [])
+        if not core and items and items[0][0] > THIN_MAX and items[0][1]["id"] not in forced:
             core = [items[0][1]]
         ids = {c["id"] for c in core}
         rest = [c for _, c in items if c["id"] not in ids]
-        brief = [c for c in rest if info_score(c) > 0]
-        thin = [c for c in rest if info_score(c) == 0]
+        brief = [c for c in rest if info_score(c) > 0 or c["id"] in forced]
+        thin = [c for c in rest if info_score(c) == 0 and c["id"] not in forced]
         out.append({"category": g, "core": core, "brief": [brief[i:i + 2] for i in range(0, len(brief), 2)], "thin": thin})
     return out
+
+
+def tier_map(r: dict, ppt: dict) -> dict[str, str]:
+    m = {}
+    for t in tiers(r, ppt):
+        for c in t["core"]:
+            m[c["id"]] = "core"
+        for pair in t["brief"]:
+            for c in pair:
+                m[c["id"]] = "brief"
+        for c in t["thin"]:
+            m[c["id"]] = "thin"
+    return m
+
+
+def disp(c: dict, ppt: dict) -> str:
+    return ppt["companies"].get(c["id"], {}).get("short") or c["name"]
+
+
+def chosen_photos(c: dict, ppt: dict, auto: list[str]) -> list[str]:
+    """편집기에서 고른 사진(대표가 맨 앞). 고르지 않았으면 자동 순서."""
+    sel = [f"photos/day{x['day']}_{x['file'].rsplit('/', 1)[-1]}" for x in ppt["companies"].get(c["id"], {}).get("photos", [])]
+    return sel or auto
 
 
 # ---------------- AI 프롬프트 / 답변 ----------------
@@ -234,9 +272,9 @@ def _page(c: dict, ppt: dict, photos: dict, big: bool) -> list[str]:
     from .reports import plain
 
     pc = ppt["companies"].get(c["id"], {})
-    ph = photos.get(c["id"], [])
+    ph = chosen_photos(c, ppt, photos.get(c["id"], []))
     pts = [plain(p) for v in c["visits"] for p in v["points"]]
-    L = ["", f"**{c['name']}**" + (f" – {pc['check']}" if pc.get("check") else "")]
+    L = ["", f"**{disp(c, ppt)}**" + (f" – {pc['check']}" if pc.get("check") else "")]
     if ph:
         L.append("사진(대표·크게): " + f"![{c['name']}]({ph[0]})")
         rest = ph[1:4] if big else ph[1:2]
@@ -280,7 +318,9 @@ def build_markdown(r: dict, ppt: dict, photos: dict[str, list[str]]) -> str:
     rows = []
     for c in r["companies"]:
         pc = ppt["companies"].get(c["id"], {})
-        rows.append((pc.get("group") or c["category"] or "기타", c["name"], pc.get("level"), pc.get("check") or NEED))
+        if pc.get("tier") == "hide":
+            continue
+        rows.append((pc.get("group") or c["category"] or "기타", disp(c, ppt), pc.get("level"), pc.get("check") or NEED))
     for g, n, lv, ck in sorted(rows, key=lambda x: x[0]):
         L.append(f"| {_cell(g)} | {_cell(n)} | {lv or '미정'} | {_cell(ck)} |")
     L += ["", "※ 1: 단기 적용 가능 / 2: 추가 검증 필요 / 3: 중·장기 검토", "", "## 시사점 및 결론", "### 시사점"]
@@ -312,10 +352,12 @@ def build_markdown(r: dict, ppt: dict, photos: dict[str, list[str]]) -> str:
     L += ["", "---", "", "## [별첨] 업체별 자료"]
     n = 0
     for c in r["companies"]:
+        if ppt["companies"].get(c["id"], {}).get("tier") == "hide":
+            continue
         n += 1
         pc = ppt["companies"].get(c["id"], {})
         place = " ".join(x for x in (c["hall"], c["booth"]) if x)
-        L += ["", f"### {n}. {c['name']}", f"- 구분: {pc.get('group') or c['category'] or '기타'} · 수준: {pc.get('level') or '미정'}"
+        L += ["", f"### {n}. {disp(c, ppt)}", f"- 구분: {pc.get('group') or c['category'] or '기타'} · 수준: {pc.get('level') or '미정'}"
               + (f" · 위치: {place}" if place else "") + (" · 현장 추가" if c["addedOnSite"] else "")]
         if photos.get(c["id"]):
             L += ["", "**사진/동영상** (파일명 기준, 원본 비율 유지)"] + [f"![{c['name']}]({p})" for p in photos[c["id"]]]
@@ -349,13 +391,13 @@ def build_zip(store: Store, tid: str, r: dict) -> bytes:
             ddir = daily.day_dir(store, tid, d["day"])
             for c in d["companies"]:
                 for ph in c["photos"]:
-                    rel = str(ph.get("file", ""))
+                    rel = str(ph.get("file") or ph.get("src") or "")
                     src = ddir / rel
                     if not src.is_file() or ".." in rel:
                         continue
                     arc = f"photos/day{d['day']}_{src.name}"
                     z.write(src, arc)
-                    photos.setdefault(c["id"], []).append(arc)
+                    photos.setdefault(booths.base_id(c["id"]), []).append(arc)
         md = build_markdown(r, ppt, photos)
         z.writestr("최종보고서_PPT용.md", md.encode("utf-8"))
     return buf.getvalue()
