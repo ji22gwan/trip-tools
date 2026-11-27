@@ -29,7 +29,7 @@ export async function renderRecPick(root, ctx) {
     ${headerHtml(trip, day)}
     <div class="header" style="padding-top:0"><div class="title" style="font-size:20px">어느 업체를 녹음할까요?</div></div>
     <div class="scroll">
-      <button class="btn btn-primary btn-block" id="addBtn">${icons.plus(18)}새 업체 추가하고 녹음</button>
+      <button class="btn btn-primary btn-block" id="addBtn">${icons.plus(18)}업체 검색/등록하고 녹음</button>
       ${today.length ? `<div class="group-title">오늘</div><div class="list-card">${today.map(row).join("")}</div>` : ""}
       ${rest.length ? `<div class="group-title">다른 날 후보</div><div class="list-card">${rest.map(row).join("")}</div>` : ""}
     </div>`;

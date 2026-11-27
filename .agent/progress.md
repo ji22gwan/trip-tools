@@ -29,3 +29,6 @@
 - 시도: Desk 최종 보고서 편집기(editor.js): 업체별 핵심/비교/제외 고정, 짧은 이름, 기술 요약·적용·차이, 사진 선택·대표 지정, 시사점·결론·후속 과제 편집, 저장 후 Markdown+사진 ZIP
 - 결과: pytest 59 통과, node --check 통과, npm test 종료코드 위 기록(scripts_test.sh 는 기존부터 실패), 화면 동작은 NOT RUN
 - 다음: 실제 데이터로 편집기에서 수정해 ZIP 을 AI 에 주고 PPT 결과 비교
+- 시도: Desk 일정 배분 탭 제거, 폰 앱 '업체 검색/등록'(이름 입력 시 등록된 업체 목록 표시·바로 열기, 같은 이름은 새로 만들지 않음), sw tf-v32
+- 결과: npm test node/pytest 통과(scripts_test.sh 는 기존부터 exit 1), 폰 화면 NOT RUN
+- 다음: 폰에서 검색/등록 시트 확인

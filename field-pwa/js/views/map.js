@@ -38,7 +38,7 @@ export async function renderMap(root, ctx) {
     </div>
     <div class="map-bar"><div><b>오늘 ${todays.length - onsite}곳</b><span class="muted"> · 완료 ${done}${onsite ? ` · 현장 추가 ${onsite}` : ""}</span>
       <div class="tiny muted"><i class="lg todo"></i>남은 <i class="lg done"></i>완료</div></div>
-      <button class="btn btn-primary" id="fabAdd">${icons.plus(18)}업체 추가</button></div>`;
+      <button class="btn btn-primary" id="fabAdd">${icons.plus(18)}업체 검색/등록</button></div>`;
 
   bindHeader(root, trip, ctx);
   root.querySelector("#fabAdd").onclick = () => openAddCompany(ctx);

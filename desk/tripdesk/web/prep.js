@@ -43,7 +43,7 @@ function draw() {
   const steps = [
     ["출장 정보", true, () => P.root.querySelector(".leftcol input")?.focus()],
     ["후보 수집", s.all > 0, () => goTab("cands")],
-    ["후보·일정", s.picked > 0 && s.dated === s.stops, () => goTab(s.picked ? "plan" : "cands")],
+    ["후보 선별", s.picked > 0, () => goTab("cands")],
     ["패키지 확정", getFlag(P.tid), confirmPackage],
   ];
   const nowIdx = steps.findIndex((x) => !x[1]);
@@ -67,7 +67,7 @@ function draw() {
   );
 }
 
-const WIDE = new Set(["plan", "travel", "local"]);
+const WIDE = new Set(["travel", "local"]);
 const goTab = (k) => { P.tab = k; redraw(); P.root.querySelector(".panel")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 const kpi = (label, val, note, accent) => h("div", { class: "kpi" + (accent ? " accent" : "") }, h("span", {}, label), h("b", {}, val), h("em", {}, note));
 
@@ -89,7 +89,7 @@ function leftCol(s) {
   const checks = [
     ["공식 사이트·지도 확보", s.maps > 0, () => goTab("map")],
     ["후보 업체 수집", s.all > 0, () => goTab("cands")],
-    ["후보 선별·일정 배분", s.picked > 0 && s.dated === s.stops, () => goTab(s.picked ? "plan" : "cands")],
+    ["후보 선별", s.picked > 0, () => goTab("cands")],
     ["패키지 확정 · 폰으로 보내기", getFlag(P.tid), confirmPackage],
   ];
   const now = checks.findIndex((c) => !c[1]);
@@ -109,10 +109,10 @@ function leftCol(s) {
 
 // ---------------- 오른쪽: 탭 ----------------
 function panel(s) {
-  const tabs = [["cands", `후보 업체 ${s.all}`], ["plan", "일정 배분"], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["local", "식사·이동"], ["ques", `예상 질문 ${(P.v.trip.questions || []).length || ""}`.trim()], ["gloss", "용어집"]];
+  const tabs = [["cands", `후보 업체 ${s.all}`], ["map", `전시장 맵 ${s.maps || ""}`.trim()], ["sessions", `세션·행사 ${(P.v.sessions || []).length || ""}`.trim()], ["travel", "항공·숙소"], ["local", "식사·이동"], ["ques", `예상 질문 ${(P.v.trip.questions || []).length || ""}`.trim()], ["gloss", "용어집"]];
   return h("div", { class: "panel" + (WIDE.has(P.tab) ? " wide" : "") },
     h("div", { class: "tabs", role: "tablist" }, ...tabs.map(([k, label]) => h("button", { class: P.tab === k ? "on" : "", role: "tab", onclick: () => { P.tab = k; redraw(); } }, label))),
-    P.tab === "cands" ? candsTab(s) : P.tab === "plan" ? planTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : P.tab === "local" ? localTab(P) : P.tab === "ques" ? quesTab() : glossTab(),
+    P.tab === "cands" ? candsTab(s) : P.tab === "map" ? mapTab() : P.tab === "sessions" ? sessionsTab(P, redraw) : P.tab === "travel" ? travelTab(P) : P.tab === "local" ? localTab(P) : P.tab === "ques" ? quesTab() : glossTab(),
   );
 }
 
@@ -191,7 +191,7 @@ function candsTab(s) {
     h("div", { class: "table" }, header, ...(rows.length ? rows : [h("div", { class: "empty" }, "조건에 맞는 업체가 없어요.")])),
     h("div", { class: "foot" },
       h("div", {}, h("b", {}, `선택 ${s.picked}곳` + (s.stops > s.picked ? ` (방문 지점 ${s.stops}곳)` : "") + perDay.map((n, i) => (n ? ` · Day ${i + 1} ${n}곳` : "")).join("")),
-        h("div", { class: "sub" }, s.stops - s.dated ? `일정 미배정 ${s.stops - s.dated}곳 · '일정 배분' 탭에서 한 번에 나눌 수 있어요` : "모든 선택 업체에 방문일이 있어요")),
+        h("div", { class: "sub" }, s.stops - s.dated ? `방문일 미지정 ${s.stops - s.dated}곳` : "모든 선택 업체에 방문일이 있어요")),
       h("div", { class: "row" },
         h("button", { class: "btn", onclick: () => openCompanyEditor(null) }, "+ 업체 직접 추가"), csvButton())));
 }

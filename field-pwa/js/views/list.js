@@ -88,7 +88,7 @@ export async function renderList(root, ctx) {
           ? groups.map((g) => `<div class="group-title">${esc(g.title)} · ${g.items.length}곳</div><div class="list-card ${g.title === "현장 추가" ? "dashed" : ""}">${g.items.map(rowHtml).join("")}</div>`).join("")
           : `<div class="card" style="margin-top:12px;text-align:center;color:var(--sub)">${q ? "검색 결과가 없어요." : filter === "today" ? "오늘 방문할 업체가 없어요. 전체 보기에서 확인하거나 업체를 추가해 보세요." : "아직 업체가 없어요."}</div>`
       }
-      <button class="btn btn-block" id="addBtn" style="margin-top:16px">${icons.plus(18)}업체 추가</button>
+      <button class="btn btn-block" id="addBtn" style="margin-top:16px">${icons.plus(18)}업체 검색/등록</button>
     `;
     body.querySelector("#sessMore")?.addEventListener("click", () => { sessOpen = !sessOpen; ctx.rerender(); });
     body.querySelector("#addBtn").onclick = () => openAddCompany(ctx);
