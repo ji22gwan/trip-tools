@@ -146,6 +146,7 @@ export async function importTripPackage(file, onStage = () => {}) {
     venue: tripIn.venue || "",
     purpose: tripIn.purpose || "",
     days: tripIn.days,
+    questions: (Array.isArray(tripIn.questions) ? tripIn.questions : []).map((q) => String(q).trim()).filter(Boolean).slice(0, 60),
     glossary,
     hallPins: cleanPins(tripIn.hallPins),
     sessions: cleanSessions(tripIn.sessions).map((x) => ({ ...x, going: !!existingTrip?.sessions?.find((o) => o.id === x.id)?.going })), // 다시 받아도 '참석' 표시는 유지

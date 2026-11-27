@@ -51,7 +51,7 @@ def main():
         sel = items if d == 1 else items[:2]
         days[str(d)] = [dict(id=cid, recs=[(hm, dur) for hm, dur, _, _ in rr], memos=memos, photos=ph) for cid, rr, memos, ph in sel]
     with sync_playwright() as p:
-        b = p.chromium.launch()
+        b = p.chromium.launch(channel="chrome")
         ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True, locale="ko-KR",
                             timezone_id="Europe/Berlin", service_workers="block")
         ctx.route(WORKER + "/**", worker_route)
@@ -102,8 +102,21 @@ def main():
         shot("phone-13-export-ready", full=True)
         pg.goto(BASE + "/#/list"); pg.wait_for_timeout(800)
         pg.click("#addBtn"); pg.wait_for_timeout(600)
+        pg.fill("#acName", "알파"); pg.wait_for_timeout(300)
+        shot("phone-14-add-search")      # 이미 등록된 업체가 아래에 떠서 바로 고를 수 있다
         pg.fill("#acName", "깜짝부스 테크"); pg.fill("#acHall", "4"); pg.fill("#acBooth", "4Z99")
         shot("phone-14-add-company")
+        pg.click("#acSave"); pg.wait_for_timeout(1200)
+        shot("phone-17-company-added", full=True)   # 현장에서 추가한 업체: 수정·삭제 버튼
+        pg.goto(BASE + "/#/list"); pg.wait_for_timeout(900)
+        pg.fill("#coSearch", "벨타"); pg.wait_for_timeout(400)
+        shot("phone-16-list-search")
+        pg.fill("#coSearch", ""); pg.wait_for_timeout(300)
+        if pg.locator("[data-rep]").count():
+            pg.locator("[data-rep]").first.click(); pg.wait_for_timeout(4000)
+            shot("phone-18-report-pdf")
+        else:
+            print("NO report card")
         b.close()
     print(errs)
 main()

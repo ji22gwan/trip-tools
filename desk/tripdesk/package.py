@@ -84,6 +84,7 @@ def build_package(store: Store, trip_id: str) -> tuple[str, bytes]:
         "venue": trip.get("venue", ""),
         "purpose": trip.get("purpose", ""),
         "days": trip["days"],
+        "questions": list(trip.get("questions", [])),  # 폰에서 새로 추가한 업체에도 공통 예상 질문을 넣는다
         "bookings": _bookings(store, trip_id),
         "local": _local(store, trip_id),
         "sessions": [{k: x.get(k, "") for k in ("id", "title", "date", "start", "end", "place", "hall", "speaker", "topic")}

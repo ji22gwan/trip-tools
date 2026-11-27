@@ -120,7 +120,7 @@ export async function addCompany(trip, { name, category, hall, booth, day }) {
     booth: (booth || "").trim(),
     day: day || null,
     preNotes: "",
-    questions: [],
+    questions: (trip.questions || []).map((text) => ({ text, done: false })), // 출장 공통 예상 질문
     addedOnSite: true,
     visits: [],
     createdAt: Date.now(),

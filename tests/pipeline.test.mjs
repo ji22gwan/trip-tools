@@ -105,6 +105,9 @@ test("현장 추가 + 녹음/메모/사진 -> 하루치 ZIP", async () => {
   const added = await model.addCompany(trip, { name: "즉석 업체 G", category: "", hall: "3", booth: "220", day: 1 });
   assert.equal(added.addedOnSite, true);
   assert.equal(added.category, "기타");
+  const q = await model.addCompany({ ...trip, questions: ["가격은?", "납기는?"] }, { name: "질문 시험 업체", category: "", hall: "", booth: "", day: 1 });
+  assert.deepEqual(q.questions, [{ text: "가격은?", done: false }, { text: "납기는?", done: false }]); // 출장 공통 질문이 새 업체에도 들어간다
+  await model.deleteCompany(q.id);
 
   const audio = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
   const t0 = new Date(2026, 10, 24, 10, 24).getTime();

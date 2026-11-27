@@ -26,7 +26,7 @@ os.environ["TRIP_TOOLS_HOME"] = str(HOME / "tt")  # 설치 기록 없음 → '�
 
 def main():
     with sync_playwright() as p:
-        b = p.chromium.launch()
+        b = p.chromium.launch(channel="chrome")
         pg = b.new_page(viewport={"width": 1280, "height": 800})
         errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
         def go(h): pg.goto(f"{BASE}/#/{h}"); pg.reload(); pg.wait_for_timeout(900)
@@ -84,8 +84,6 @@ def main():
         pg.locator("button[aria-label='에코웰딩 편집']").click(); pg.wait_for_timeout(400)
         shot("desk-08-company-edit", clip_modal=True)
         click("저장") if False else pg.locator(".modalbg").evaluate("e=>e.remove()")
-        pg.locator("button:has-text('일정 배분')").first.click(); pg.wait_for_timeout(600)
-        shot("desk-09-plan", full=True)
         pg.locator("button:has-text('전시장 맵')").first.click(); pg.wait_for_timeout(2500)
         pg.wait_for_selector("canvas", timeout=20000); pg.wait_for_timeout(800)
         shot("desk-10-map-tab", full=True)
@@ -118,6 +116,11 @@ def main():
         pg.locator(".modalbg").evaluate("e=>e.remove()")
         pg.locator("text=용어집").first.click(); pg.wait_for_timeout(500)
         shot("desk-17-glossary")
+
+        # 예상 질문 (출장 전체 공통)
+        call("PATCH", f"/trips/{tid}", dict(questions=["가격(대략)과 납기는 어떻게 되나요?", "국내 기술지원·A/S 체계가 있나요?", "SDK/API는 어떤 언어를 지원하나요?", "비슷한 업종(조선·중공업) 적용 사례가 있나요?"]))
+        go(f"prep/{tid}"); pg.locator("button:has-text('예상 질문')").first.click(); pg.wait_for_timeout(700)
+        shot("desk-37-questions", full=True)
 
         # 출장 계획서(Markdown → PDF)
         call("PUT", f"/trips/{tid}/plan", dict(goals=["협동로봇·비전 센서·안전 시스템 최신 동향 파악", "조선 용접·운반 공정 적용 가능 업체 후보 압축"],
@@ -175,13 +178,17 @@ def main():
             for (cid, rr, memos, photos) in D.DAYS[d]:
                 for ri, (hm, dur, raw, cor) in enumerate(rr):
                     recs.append(dict(file=f"audio/{cid}_{hm.replace(':', '')}_{ri + 1:02d}.wav", corrected=cor))
-                comps_.append(dict(id=cid, points=D.POINTS[cid]))
-            call("POST", f"/trips/{tid}/days/{d}/paste", dict(text="```json\n" + json.dumps(dict(recordings=recs, companies=comps_, summary=D.DAY_SUMMARY[d]), ensure_ascii=False) + "\n```"))
+                comps_.append(dict(id=cid, points=D.POINTS[cid], category=next(c[2] for c in D.COMPANIES if c[0] == cid)))
+            call("POST", f"/trips/{tid}/days/{d}/paste", dict(text="```json\n" + json.dumps(dict(recordings=recs, companies=comps_, summary=D.DAY_SUMMARY[d], findings=["협동로봇·모션 제어·비전 센서의 용접 적용 가능성 확인", "가격·납기 등 도입 조건 확인"]), ensure_ascii=False) + "\n```"))
+        call("PUT", f"/trips/{tid}/days/1/report", dict(gaps="코발트비전 가격 확인 못 함 · 내일 벨타모션 2D40 부스 재방문 · 알파로보틱스 부스 사진 더 필요"))
         go(f"daily/{tid}/1"); shot("desk-23-daily-1", full=True)
         go(f"daily/{tid}/2"); shot("desk-24-daily-2")
         pg.locator("button:has-text('수정')").first.click(); pg.wait_for_timeout(400)
         shot("desk-25-daily-edit", clip_modal=True)
         pg.locator(".modalbg").evaluate("e=>e.remove()")
+        zb = call("GET", f"/trips/{tid}/days/1/report-md.zip")
+        call("POST", f"/trips/{tid}/days/1/final-report?filename=day1.zip", zb, raw=True)
+        go(f"daily/{tid}/1"); pg.locator("text=수정한 보고서 올리기").first.scroll_into_view_if_needed(); shot("desk-39-daily-final-uploaded")
         # ---------- 6. 최종 보고서 ----------
         go(f"final/{tid}"); shot("desk-26-final-empty")
         click("AI 총평 프롬프트"); pg.wait_for_timeout(500); shot("desk-27-final-prompt")
@@ -200,9 +207,12 @@ def main():
         pg.get_by_role("button", name="기본 정보·업체 수준 입력").click(); pg.wait_for_timeout(500)
         shot("desk-31-final-ppt-edit", clip_modal=True)
         pg.locator(".modalbg").evaluate("e=>e.remove()")
+        pg.get_by_role("button", name="보고서 편집기 열기").click(); pg.wait_for_timeout(900)
+        pg.locator(".edco").first.scroll_into_view_if_needed(); pg.evaluate("window.scrollBy(0,-120)"); shot("desk-38-final-editor")
         import io, zipfile
         z = zipfile.ZipFile(io.BytesIO(call("GET", f"/trips/{tid}/final-ppt.zip")))
         (IMG.parent / "sample_ppt_report.md").write_bytes(z.read("최종보고서_PPT용.md")); print(len(z.namelist()), "files in zip")
+        (IMG.parent / "package.zip").write_bytes(call("GET", f"/trips/{tid}/package"))  # 일간 PDF 가 들어간 최종 패키지
         print("home", HOME)
         b.close()
     print(errs)

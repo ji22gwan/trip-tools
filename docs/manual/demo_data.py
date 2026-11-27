@@ -96,11 +96,15 @@ def tone_wav(freq: float, sec: float = 3.0) -> bytes:
 
 
 def photo_jpeg(label: str, color) -> bytes:
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFont
+    try:  # 한글 라벨: 기본 글꼴은 한글을 못 그린다
+        font = ImageFont.truetype("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 26)
+    except OSError:
+        font = None
     im = Image.new("RGB", (480, 320), color)
     d = ImageDraw.Draw(im)
     d.rectangle([20, 20, 460, 300], outline=(255, 255, 255), width=4)
-    d.text((40, 140), label, fill=(255, 255, 255))
+    d.text((40, 140), label, fill=(255, 255, 255), font=font)
     out = io.BytesIO(); im.save(out, "JPEG", quality=80)
     return out.getvalue()
 

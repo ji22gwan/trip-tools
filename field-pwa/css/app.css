@@ -237,3 +237,4 @@ details.gfold + details.gfold { border-top: 1px solid var(--line-soft); }
 .q-tall .box { margin-top: 2px; }
 .q-main { display: block; font-size: 17px; font-weight: 700; line-height: 1.4; }
 .q-orig { display: block; font-size: 13px; color: var(--sub); font-weight: 400; margin-top: 1px; }
+a.btn{text-decoration:none;color:inherit}
